@@ -17,6 +17,7 @@
 # This script is used to run the integration tests on OpenShift.
 # Usage: ./integ-suite-ocp.sh TEST_SUITE SKIP_TESTS, example: /prow/integ-suite-ocp.sh telemetry "TestClientTracing|TestServerTracing"
 # TEST_SUITE: The test suite to run. Default is "pilot". Available options are "pilot", "security", "telemetry", "helm".
+# TODO: Use the same arguments as integ-suite.kind.sh uses
 
 WD=$(dirname "$0")
 ROOT=$(dirname "$WD")
@@ -35,7 +36,7 @@ set -u
 set -x
 
 # shellcheck source=common/scripts/kind_provisioner.sh
-source "${ROOT}/common/scripts/ocp_setup.sh"
+source "${ROOT}/prow/setup/ocp_setup.sh"
 
 build_images() {
     # Build just the images needed for tests
@@ -66,6 +67,8 @@ echo "Running integration tests"
 HUB="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"
 
 # Build the base command and store it in a variable.
+# TODO: execute the test by running make target. Do we need first to add a skip flag to the make target to be able to skip failing test on OCP
+# All the flags are needed to run the integration tests on OCP
 base_cmd="go test -p 1 -v -count=1 -tags=integ -vet=off -timeout 60m ./tests/integration/${TEST_SUITE}/... \
 --istio.test.ci \
 --istio.test.pullpolicy=IfNotPresent \
