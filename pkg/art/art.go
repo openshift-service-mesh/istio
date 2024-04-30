@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package echo
+package art
 
-// WorkloadClass is the class of workload in the echo instance
-type WorkloadClass = string
+import (
+	_ "embed"
 
-const (
-	Proxyless   WorkloadClass = "proxyless"
-	VM          WorkloadClass = "vm"
-	Sotw        WorkloadClass = "sotw"
-	TProxy      WorkloadClass = "tproxy"
-	Naked       WorkloadClass = "naked"
-	External    WorkloadClass = "external"
-	StatefulSet WorkloadClass = "statefulset"
-	Headless    WorkloadClass = "headless"
-	Captured    WorkloadClass = "captured"
-	Waypoint    WorkloadClass = "waypoint"
-	Standard    WorkloadClass = "standard"
+	"github.com/fatih/color"
 )
+
+//go:embed istio-ascii.txt
+var istioASCIIArt string
+
+func IstioArt() string {
+	return istioASCIIArt
+}
+
+func IstioColoredArt() string {
+	return color.New(color.FgHiBlue).Add(color.Bold).Sprintf(istioASCIIArt)
+}
