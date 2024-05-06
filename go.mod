@@ -25,7 +25,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.10.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/cli v26.1.0+incompatible
-	github.com/envoyproxy/go-control-plane v0.12.1-0.20240425230418-212e93054f1a
+	github.com/envoyproxy/go-control-plane v0.12.1-0.20240502154003-bc7bb4ca8b9d
 	github.com/evanphx/json-patch/v5 v5.9.0
 	github.com/fatih/color v1.16.0
 	github.com/felixge/fgprof v0.9.4
@@ -106,8 +106,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.14.4
-	istio.io/api v1.22.0-alpha.1.0.20240501132840-1724785ec635
-	istio.io/client-go v1.22.0-alpha.1.0.20240501133140-436cc17804f9
+	istio.io/api v1.22.0-alpha.1.0.20240502140243-ee871f771167
+	istio.io/client-go v1.22.0-alpha.1.0.20240502155741-72326b03a2fd
 	k8s.io/api v0.30.0
 	k8s.io/apiextensions-apiserver v0.30.0
 	k8s.io/apimachinery v0.30.0
