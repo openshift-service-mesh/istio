@@ -58,7 +58,6 @@ import (
 	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/util/protomarshal"
 	"istio.io/istio/pkg/util/sets"
-	iptablesConstants "istio.io/istio/tools/istio-iptables/pkg/constants"
 )
 
 var (
@@ -581,11 +580,11 @@ func resetFieldsInAutoImageContainer(original *corev1.Container, template *corev
 	// This is likely a scenario in OpenShift when the istio-proxy container with image: auto is parsed, if SecurityContext.RunAsUser
 	// does not exist, OpenShift automatically assigns a value which is based on an annotation in the namespace. Regardless if the user
 	// provided that value or if it was assigned by OpenShift, the correct value is the one in the template, as set by the `.ProxyUID` field.
-	if original.SecurityContext != nil && template.SecurityContext != nil && template.SecurityContext.RunAsUser != nil &&
-		*template.SecurityContext.RunAsUser != iptablesConstants.DefaultProxyUIDInt {
-		original.SecurityContext.RunAsUser = nil
-		original.SecurityContext.RunAsGroup = nil
-	}
+	// if original.SecurityContext != nil && template.SecurityContext != nil && template.SecurityContext.RunAsUser != nil &&
+	// 	*template.SecurityContext.RunAsUser != iptablesConstants.DefaultProxyUIDInt {
+	// 	original.SecurityContext.RunAsUser = nil
+	// 	original.SecurityContext.RunAsGroup = nil
+	// }
 }
 
 // parseStatus extracts containers from injected SidecarStatus annotation
