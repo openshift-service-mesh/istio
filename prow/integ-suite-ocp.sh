@@ -48,8 +48,8 @@ build_images() {
         arch="linux/arm64"
     fi
 
-    # use ubuntu:jammy to test vms by default
-    nonDistrolessTargets="docker.app docker.app_sidecar_ubuntu_jammy docker.ext-authz "
+    # use ubuntu:noble to test vms by default
+    nonDistrolessTargets="docker.app docker.app_sidecar_ubuntu_noble docker.ext-authz "
 
     DOCKER_ARCHITECTURES="${arch}"  DOCKER_BUILD_VARIANTS="${VARIANT:-default}" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
 }
