@@ -9,7 +9,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.3.0
 	cloud.google.com/go/logging v1.9.0
 	cloud.google.com/go/monitoring v1.18.2
-	cloud.google.com/go/security v1.16.0
 	cloud.google.com/go/trace v1.10.6
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
 	github.com/Masterminds/semver/v3 v3.2.1
@@ -25,7 +24,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.10.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/cli v26.1.0+incompatible
-	github.com/envoyproxy/go-control-plane v0.12.1-0.20240502154003-bc7bb4ca8b9d
+	github.com/envoyproxy/go-control-plane v0.12.1-0.20240509201933-132c0a31ab09
 	github.com/evanphx/json-patch/v5 v5.9.0
 	github.com/fatih/color v1.16.0
 	github.com/felixge/fgprof v0.9.4
@@ -125,10 +124,8 @@ require (
 
 require (
 	cel.dev/expr v0.15.0 // indirect
-	cloud.google.com/go v0.112.2 // indirect
 	cloud.google.com/go/auth v0.3.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect
-	cloud.google.com/go/iam v1.1.7 // indirect
 	cloud.google.com/go/longrunning v0.5.6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/BurntSushi/toml v1.3.2 // indirect
@@ -234,7 +231,6 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.11 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.11 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 	go.starlark.net v0.0.0-20231121155337-90ade8b19d09 // indirect
 	go.uber.org/mock v0.4.0 // indirect
