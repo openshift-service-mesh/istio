@@ -27,12 +27,12 @@ export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export TAG="${TAG:-"istio-testing"}"
 SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
-# PROW is a flag to determine if the script is running in Prow or not. Default is true. if you are running the script locally, set it to false
-PROW="${PROW:-"true"}"
+# JUNIT_REPORT set to true generate a junit xml file with the complete report of all the test. 
+# If you are executing locally you will need to install before the go-junit-report package
+JUNIT_REPORT="${JUNIT_REPORT:-"true"}"
 
 # Check if artifact dir exist and if not create it in the current directory
 ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
-mkdir -p "${ARTIFACTS_DIR}"
 mkdir -p "${ARTIFACTS_DIR}/junit"
 JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
 
@@ -102,21 +102,17 @@ base_cmd="go test -p 1 -v -count=1 -tags=integ -vet=off -timeout 60m ./tests/int
 --istio.test.kube.helm.values='profile=openshift,global.platform=openshift' \
 --istio.test.istio.enableCNI=true \
 --istio.test.hub=\"${HUB}\" \
---istio.test.tag=\"${TAG}\""
-
-# Check if TEST_SUITE is 'helm' and add specific flag
-if [ "${TEST_SUITE}" = "helm" ]; then
-    base_cmd+=" --istio.test.openshift"
-fi
+--istio.test.tag=\"${TAG}\" \
+--istio.test.openshift"
 
 # Append skip tests flag if SKIP_TESTS is set
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=" -skip '${SKIP_TESTS}'"
 fi
 
-# Setup JUnit report and modify base command if running in Prow mode
-if [ "${PROW}" == "true" ]; then
-    echo "Running in Prow mode. Generating JUnit report."
+# Setup JUnit report and modify base command if JUNIT_REPORT is set to true
+if [ "${JUNIT_REPORT}" == "true" ]; then
+    echo "A junit report file will be generated"
     setup_junit_report
     base_cmd+=" 2>&1 | tee >(${JUNIT_REPORT} > ${ARTIFACTS_DIR}/junit/junit.xml)"
 fi
