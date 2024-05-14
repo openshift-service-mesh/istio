@@ -27,9 +27,9 @@ export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export TAG="${TAG:-"istio-testing"}"
 SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
-# JUNIT_REPORT set to true generate a junit xml file with the complete report of all the test. 
+# TEST_OUTPUT_FORMAT set the output format for the test result. Currently only supports: not set and junit
 # If you are executing locally you will need to install before the go-junit-report package
-JUNIT_REPORT="${JUNIT_REPORT:-"true"}"
+TEST_OUTPUT_FORMAT="${TEST_OUTPUT_FORMAT:-"junit"}"
 
 # Check if artifact dir exist and if not create it in the current directory
 ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
@@ -110,8 +110,8 @@ if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=" -skip '${SKIP_TESTS}'"
 fi
 
-# Setup JUnit report and modify base command if JUNIT_REPORT is set to true
-if [ "${JUNIT_REPORT}" == "true" ]; then
+# Add junit output for when the TEST_OUTPUT_FORMAT is set to junit
+if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
     echo "A junit report file will be generated"
     setup_junit_report
     base_cmd+=" 2>&1 | tee >(${JUNIT_REPORT} > ${ARTIFACTS_DIR}/junit/junit.xml)"
