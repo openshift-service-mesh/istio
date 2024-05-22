@@ -59,7 +59,14 @@ build_images() {
     # use ubuntu:noble to test vms by default
     nonDistrolessTargets="docker.app docker.app_sidecar_ubuntu_noble docker.ext-authz "
 
-    DOCKER_ARCHITECTURES="${arch}"  DOCKER_BUILD_VARIANTS="${VARIANT:-default}" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
+    if [[ "${VARIANT:-default}" == "distroless" ]]; then
+        echo "Building distroless images"
+        DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="distroless" DOCKER_TARGETS="${targets}" make dockerx.pushx
+        DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="default" DOCKER_TARGETS="${nonDistrolessTargets}" make dockerx.pushx
+    else
+        echo "Building default images"
+        DOCKER_ARCHITECTURES="${arch}"  DOCKER_BUILD_VARIANTS="${VARIANT:-default}" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
+    fi
 }
 
 # Setup the internal registry for ocp cluster
