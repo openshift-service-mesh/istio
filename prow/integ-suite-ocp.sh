@@ -43,6 +43,8 @@ set -u
 # Print commands
 set -x
 
+set -o pipefail
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -81,12 +83,6 @@ echo "Running integration tests"
 # Set the HUB to the internal registry svc URL to avoid the need to authenticate to pull images
 HUB="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"
 
-# Build the base command and store it in a variable.
-# TODO: execute the test by running make target. Do we need first to add a skip flag to the make target to be able to skip failing test on OCP
-# All the flags are needed to run the integration tests on OCP
-# Initialize base_cmd
-base_cmd=""
-
 # Set up test command and parameters
 setup_junit_report() {
     export ISTIO_BIN="${GOPATH}/bin"
@@ -99,30 +95,29 @@ setup_junit_report() {
     echo "JUNIT_REPORT: ${JUNIT_REPORT}"
 }
 
-# Base command setup
-base_cmd="go test -p 1 -v -count=1 -tags=integ -vet=off -timeout 60m ./tests/integration/${TEST_SUITE}/... \
---istio.test.ci \
---istio.test.pullpolicy=IfNotPresent \
---istio.test.work_dir=${ARTIFACTS_DIR} \
---istio.test.skipTProxy=true \
---istio.test.skipVM=true \
---istio.test.kube.helm.values='profile=openshift,global.platform=openshift' \
---istio.test.istio.enableCNI=true \
---istio.test.hub=\"${HUB}\" \
---istio.test.tag=\"${TAG}\" \
---istio.test.openshift"
+# Build the base command and store it in an array
+base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "./tests/integration/${TEST_SUITE}/..."
+          "--istio.test.ci"
+          "--istio.test.pullpolicy=IfNotPresent"
+          "--istio.test.work_dir=${ARTIFACTS_DIR}"
+          "--istio.test.skipTProxy=true"
+          "--istio.test.skipVM=true"
+          "--istio.test.kube.helm.values=profile=openshift,global.platform=openshift"
+          "--istio.test.istio.enableCNI=true"
+          "--istio.test.hub=${HUB}"
+          "--istio.test.tag=${TAG}"
+          "--istio.test.openshift")
 
 # Append skip tests flag if SKIP_TESTS is set
 if [ -n "${SKIP_TESTS}" ]; then
-    base_cmd+=" -skip '${SKIP_TESTS}'"
+    base_cmd+=("-skip" "${SKIP_TESTS}")
 fi
 
-# Add junit output for when the TEST_OUTPUT_FORMAT is set to junit
+# Execute the command and handle junit output
 if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
     echo "A junit report file will be generated"
     setup_junit_report
-    base_cmd+=" 2>&1 | tee >(${JUNIT_REPORT} > ${ARTIFACTS_DIR}/junit/junit.xml)"
+    "${base_cmd[@]}" 2>&1 | tee >( ${JUNIT_REPORT} > ${ARTIFACTS_DIR}/junit/junit.xml )
+else
+    "${base_cmd[@]}"
 fi
-
-# Execute the command.
-eval "$base_cmd"
