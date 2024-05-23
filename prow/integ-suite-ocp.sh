@@ -43,6 +43,8 @@ set -u
 # Print commands
 set -x
 
+set -o pipefail
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -122,6 +124,11 @@ if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
     echo "A junit report file will be generated"
     setup_junit_report
     base_cmd+=" 2>&1 | tee >(${JUNIT_REPORT} > ${ARTIFACTS_DIR}/junit/junit.xml)"
+fi
+
+# unset DOCKER_CONFIG var to avoid credentials error when helm test is running
+if [ "${TEST_SUITE}" == "helm" ]; then
+    unset DOCKER_CONFIG
 fi
 
 # Execute the command.
