@@ -117,7 +117,7 @@ fi
 if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
     echo "A junit report file will be generated"
     setup_junit_report
-    "${base_cmd[@]}" 2>&1 | tee >( ${JUNIT_REPORT} > ${ARTIFACTS_DIR}/junit/junit.xml )
+    "${base_cmd[@]}" 2>&1 | tee >( /usr/bin/go-junit-report > "${ARTIFACTS_DIR}/junit/junit.xml" )
 else
     "${base_cmd[@]}"
 fi
