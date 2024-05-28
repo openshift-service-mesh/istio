@@ -116,12 +116,11 @@ if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
     echo "A junit report file will be generated"
     setup_junit_report
     "${base_cmd[@]}" 2>&1 | tee >( "${JUNIT_REPORT}" > "${ARTIFACTS_DIR}/junit/junit.xml" )
+    test_status=${PIPESTATUS[0]}
 else
     "${base_cmd[@]}"
+    test_status=$?
 fi
 
-
-# For debugging purposes, print the conten of the junit folder
-echo "********* Junit report and artifacts"
-ls -l "${JUNIT_REPORT_DIR}"
-ls -l "${ARTIFACTS_DIR}"
+# Exit with the status of the test command
+exit $test_status
