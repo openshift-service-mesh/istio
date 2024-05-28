@@ -43,8 +43,6 @@ set -u
 # Print commands
 set -x
 
-set -o pipefail
-
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -124,5 +122,6 @@ fi
 
 
 # For debugging purposes, print the conten of the junit folder
+echo "********* Junit report and artifacts"
 ls -l "${JUNIT_REPORT_DIR}"
 ls -l "${ARTIFACTS_DIR}"
