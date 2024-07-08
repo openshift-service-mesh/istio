@@ -41,7 +41,7 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/mesh"
-	"istio.io/istio/pkg/ledger"
+	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/maps"
 	pm "istio.io/istio/pkg/model"
 	"istio.io/istio/pkg/monitoring"
@@ -126,8 +126,6 @@ type Environment struct {
 	// DomainSuffix provides a default domain for the Istio server.
 	DomainSuffix string
 
-	ledger ledger.Ledger
-
 	// TrustBundle: List of Mesh TrustAnchors
 	TrustBundle *trustbundle.TrustBundle
 
@@ -207,13 +205,6 @@ func (e *Environment) AddMetric(metric monitoring.Metric, key string, proxyID, m
 	}
 }
 
-func (e *Environment) Version() string {
-	if x := e.GetLedger(); x != nil {
-		return x.RootHash()
-	}
-	return ""
-}
-
 // Init initializes the Environment for use.
 func (e *Environment) Init() {
 	// Use a default DomainSuffix, if none was provided.
@@ -232,14 +223,6 @@ func (e *Environment) InitNetworksManager(updater XDSUpdater) (err error) {
 
 func (e *Environment) ClusterLocal() ClusterLocalProvider {
 	return e.clusterLocalServices
-}
-
-func (e *Environment) GetLedger() ledger.Ledger {
-	return e.ledger
-}
-
-func (e *Environment) SetLedger(l ledger.Ledger) {
-	e.ledger = l
 }
 
 func (e *Environment) GetProxyConfigOrDefault(ns string, labels, annotations map[string]string, meshConfig *meshconfig.MeshConfig) *meshconfig.ProxyConfig {
@@ -812,22 +795,50 @@ func (node *Proxy) IsUnprivileged() bool {
 }
 
 // CanBindToPort returns true if the proxy can bind to a given port.
-func (node *Proxy) CanBindToPort(bindTo bool, port uint32) bool {
+// canbind indicates whether the proxy can bind to the port.
+// knownlistener indicates whether the check failed if the proxy is trying to bind to a port that is reserved for a static listener or virtual listener.
+func (node *Proxy) CanBindToPort(bindTo bool, proxy *Proxy, push *PushContext,
+	bind string, port int, protocol protocol.Instance, wildcard string,
+) (canbind bool, knownlistener bool) {
 	if bindTo {
-		if IsPrivilegedPort(port) && node.IsUnprivileged() {
-			return false
-		}
-		if node.Metadata != nil &&
-			(node.Metadata.EnvoyPrometheusPort == int(port) || node.Metadata.EnvoyStatusPort == int(port)) {
-			// can not bind to port that already bound by proxy static listener
-			return false
+		if isPrivilegedPort(port) && node.IsUnprivileged() {
+			return false, false
 		}
 	}
-	return true
+	if conflictWithReservedListener(proxy, push, bind, port, protocol, wildcard) {
+		return false, true
+	}
+	return true, false
 }
 
-// IsPrivilegedPort returns true if a given port is in the range 1-1023.
-func IsPrivilegedPort(port uint32) bool {
+// conflictWithReservedListener checks whether the listener address bind:port conflicts with
+// - static listener port：default is 15021 and 15090
+// - virtual listener port: default is 15001 and 15006 (only need to check for outbound listener)
+func conflictWithReservedListener(proxy *Proxy, push *PushContext, bind string, port int, protocol protocol.Instance, wildcard string) bool {
+	if bind != "" {
+		if bind != wildcard {
+			return false
+		}
+	} else if !protocol.IsHTTP() {
+		// if the protocol is HTTP and bind == "", the listener address will be 0.0.0.0:port
+		return false
+	}
+
+	var conflictWithStaticListener, conflictWithVirtualListener bool
+
+	// bind == wildcard
+	// or bind unspecified, but protocol is HTTP
+	if proxy.Metadata != nil {
+		conflictWithStaticListener = proxy.Metadata.EnvoyStatusPort == port || proxy.Metadata.EnvoyPrometheusPort == port
+	}
+	if push != nil {
+		conflictWithVirtualListener = int(push.Mesh.ProxyListenPort) == port || int(push.Mesh.ProxyInboundListenPort) == port
+	}
+	return conflictWithStaticListener || conflictWithVirtualListener
+}
+
+// isPrivilegedPort returns true if a given port is in the range 1-1023.
+func isPrivilegedPort(port int) bool {
 	// check for 0 is important because:
 	// 1) technically, 0 is not a privileged port; any process can ask to bind to 0
 	// 2) this function will be receiving 0 on input in the case of UDS listeners
