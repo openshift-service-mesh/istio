@@ -46,6 +46,8 @@ type Test interface {
 	//
 	// Deprecated: All new tests should support multiple clusters.
 	RequiresSingleCluster() Test
+	// RequiresDualstack ensures that test context contains DualStack configuration.
+	RequiresDualStack() Test
 	// RequiresLocalControlPlane ensures that clusters are using locally-deployed control planes.
 	//
 	// Deprecated: Tests should not make assumptions regarding control plane topology.
@@ -120,6 +122,7 @@ type testImpl struct {
 	requiredMaxClusters       int
 	requireLocalIstiod        bool
 	requireSingleNetwork      bool
+	requiredDualstack         bool
 	minIstioVersion           string
 	minKubernetesMinorVersion uint
 	topLevel                  bool
@@ -171,6 +174,12 @@ func (t *testImpl) RequiresSingleCluster() Test {
 	return t.RequiresMinClusters(1)
 }
 
+func (t *testImpl) RequiresDualStack() Test {
+	t.requiredDualstack = true
+	// nolint: staticcheck
+	return t
+}
+
 func (t *testImpl) RequiresLocalControlPlane() Test {
 	t.requireLocalIstiod = true
 	return t
@@ -209,11 +218,6 @@ func (t *testImpl) runInternal(fn func(ctx TestContext), parallel bool) {
 		panic(fmt.Sprintf("Attempting to run test `%s` more than once", testName))
 	}
 
-	if t.s.skipped {
-		t.goTest.Skip("Skipped because parent Suite was skipped.")
-		return
-	}
-
 	if t.parent != nil {
 		// Create a new subtest under the parent's test.
 		parentGoTest := t.parent.goTest
@@ -250,6 +254,10 @@ func (t *testImpl) doRun(ctx *testContext, fn func(ctx TestContext), parallel bo
 		return
 	}
 
+	if t.requiredDualstack && !t.ctx.Settings().EnableDualStack {
+		t.goTest.Skipf("Skipping %q: context does not have DualStack configuration",
+			t.goTest.Name())
+	}
 	if t.minKubernetesMinorVersion > 0 {
 		for _, c := range ctx.Clusters() {
 			if !c.MinKubeVersion(t.minKubernetesMinorVersion) {
