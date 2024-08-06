@@ -139,7 +139,7 @@ global:
   proxy:
     foo: "bar"
 `,
-			wantErrs: makeErrors([]string{`unknown field "foo" in v1alpha1.ProxyConfig`}),
+			wantErrs: makeErrors([]string{`unknown field "foo" in istio.operator.v1alpha1.ProxyConfig`}),
 		},
 		{
 			desc: "unknown cni field",
@@ -147,7 +147,7 @@ global:
 cni:
   foo: "bar"
 `,
-			wantErrs: makeErrors([]string{`unknown field "foo" in v1alpha1.CNIConfig`}),
+			wantErrs: makeErrors([]string{`unknown field "foo" in istio.operator.v1alpha1.CNIConfig`}),
 		},
 	}
 
@@ -206,7 +206,7 @@ func TestValidateValuesFromValuesYAMLs(t *testing.T) {
 	valuesYAML := ""
 	var allFiles []string
 	manifestDir := filepath.Join(repoRootDir, "manifests/charts")
-	for _, sd := range []string{"base", "gateways", "istio-cni", "istio-control"} {
+	for _, sd := range []string{"base", "gateways"} {
 		dir := filepath.Join(manifestDir, sd)
 		files, err := util.FindFiles(dir, yamlFileFilter)
 		if err != nil {

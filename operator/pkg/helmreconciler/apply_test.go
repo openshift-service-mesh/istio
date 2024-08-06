@@ -20,19 +20,16 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"sync"
 	"testing"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
-	v1alpha12 "istio.io/api/operator/v1alpha1"
 	"istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	"istio.io/istio/operator/pkg/object"
 )
@@ -118,10 +115,8 @@ func TestHelmReconciler_ApplyObject(t *testing.T) {
 						Name:      "test-operator",
 						Namespace: "istio-operator-test",
 					},
-					Spec: &v1alpha12.IstioOperatorSpec{},
+					Spec: &v1alpha1.IstioOperatorSpec{},
 				},
-				countLock:     &sync.Mutex{},
-				prunedKindSet: map[schema.GroupKind]struct{}{},
 			}
 			if err := h.ApplyObject(obj.UnstructuredObject()); (err != nil) != tt.wantErr {
 				t.Errorf("HelmReconciler.ApplyObject() error = %v, wantErr %v", err, tt.wantErr)

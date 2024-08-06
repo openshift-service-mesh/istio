@@ -18,8 +18,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	operatorv1alpha1 "istio.io/api/operator/v1alpha1"
 )
 
 //
@@ -55,17 +53,5 @@ type IstioOperator struct {
 
 	// Spec defines the implementation of this definition.
 	// +optional
-	Spec *operatorv1alpha1.IstioOperatorSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
-
-	Status *operatorv1alpha1.InstallStatus `json:"status,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// IstioOperatorSpecList is a collection of IstioOperatorSpecs.
-type IstioOperatorList struct {
-	metav1.TypeMeta `json:",inline"`
-	// +optional
-	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-	Items           []IstioOperator `json:"items" protobuf:"bytes,2,rep,name=items"`
+	Spec *IstioOperatorSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 }
