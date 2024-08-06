@@ -669,8 +669,8 @@ func TestGetAllAddresses(t *testing.T) {
 			},
 			ipMode:                 IPv4,
 			ambientEnabled:         true,
-			expectedAddresses:      []string{"10.0.0.0/28", "10.0.0.16/28", "::ffff:10.0.0.32", "::ffff:10.0.0.48"},
-			expectedExtraAddresses: []string{"10.0.0.16/28", "::ffff:10.0.0.32", "::ffff:10.0.0.48"},
+			expectedAddresses:      []string{"10.0.0.0/28", "10.0.0.16/28"},
+			expectedExtraAddresses: []string{"10.0.0.16/28"},
 		},
 		{
 			name: "IPv6 mode, ISTIO_DUAL_STACK disabled, ambient enabled, IPv4 and IPv6 addresses, expected to return all addresses",
@@ -684,8 +684,8 @@ func TestGetAllAddresses(t *testing.T) {
 			},
 			ipMode:                 IPv6,
 			ambientEnabled:         true,
-			expectedAddresses:      []string{"10.0.0.0/28", "10.0.0.16/28", "::ffff:10.0.0.32", "::ffff:10.0.0.48"},
-			expectedExtraAddresses: []string{"10.0.0.16/28", "::ffff:10.0.0.32", "::ffff:10.0.0.48"},
+			expectedAddresses:      []string{"::ffff:10.0.0.32", "::ffff:10.0.0.48"},
+			expectedExtraAddresses: []string{"::ffff:10.0.0.48"},
 		},
 		{
 			name: "IPv4 mode, auto-allocation enabled, expected auto-allocated address",
@@ -728,5 +728,32 @@ func TestGetAllAddresses(t *testing.T) {
 			extraAddresses := tc.service.GetExtraAddressesForProxy(proxy)
 			assert.Equal(t, extraAddresses, tc.expectedExtraAddresses)
 		})
+	}
+}
+
+func BenchmarkEndpointDeepCopy(b *testing.B) {
+	ep := &IstioEndpoint{
+		Labels:          labels.Instance{"label-foo": "aaa", "label-bar": "bbb"},
+		Addresses:       []string{"address-foo", "address-bar"},
+		ServicePortName: "service-port-name",
+		ServiceAccount:  "service-account",
+		Network:         "Network",
+		Locality: Locality{
+			ClusterID: "cluster-id",
+			Label:     "region1/zone1/subzone1",
+		},
+		EndpointPort: 22,
+		LbWeight:     100,
+		TLSMode:      "mutual",
+		Namespace:    "namespace",
+		WorkloadName: "workload-name",
+		HostName:     "foo-pod.svc",
+		SubDomain:    "subdomain",
+		HealthStatus: Healthy,
+		NodeName:     "node1",
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ep.DeepCopy()
 	}
 }

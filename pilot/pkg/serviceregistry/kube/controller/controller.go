@@ -297,6 +297,13 @@ func NewController(kubeClient kubelib.Client, options Options) *Controller {
 		})
 		c.reloadMeshNetworks()
 	}
+	if c.ambientIndex != nil {
+		c.networkManager.NetworkGatewaysHandler.AppendNetworkGatewayHandler(func() {
+			// This is to ensure the ambient workloads are updated dynamically, aligning them with the current network settings.
+			// With this, the pod do not need to restart when the network configuration changes.
+			c.ambientIndex.SyncAll()
+		})
+	}
 	return c
 }
 
@@ -462,11 +469,6 @@ func (c *Controller) addOrUpdateService(pre, curr *v1.Service, currConv *model.S
 		needsFullPush = c.updateServiceNodePortAddresses(currConv)
 	}
 
-	// For ExternalName, we need to update the EndpointIndex, as we will store endpoints just based on the Service.
-	if !features.EnableExternalNameAlias && curr != nil && curr.Spec.Type == v1.ServiceTypeExternalName {
-		updateEDSCache = true
-	}
-
 	c.Lock()
 	prevConv := c.servicesMap[currConv.Hostname]
 	c.servicesMap[currConv.Hostname] = currConv
@@ -504,9 +506,6 @@ func (c *Controller) buildEndpointsForService(svc *model.Service, updateCache bo
 	if features.EnableK8SServiceSelectWorkloadEntries {
 		fep := c.collectWorkloadInstanceEndpoints(svc)
 		endpoints = append(endpoints, fep...)
-	}
-	if !features.EnableExternalNameAlias {
-		endpoints = append(endpoints, kube.ExternalNameEndpoints(svc)...)
 	}
 	return endpoints
 }

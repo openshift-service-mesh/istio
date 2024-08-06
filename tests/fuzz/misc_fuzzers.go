@@ -23,8 +23,7 @@ package fuzz
 import (
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
 
-	"istio.io/api/operator/v1alpha1"
-	"istio.io/istio/operator/pkg/apis/istio"
+	"istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	"istio.io/istio/operator/pkg/apis/istio/v1alpha1/validation"
 	"istio.io/istio/operator/pkg/controlplane"
 	"istio.io/istio/operator/pkg/name"
@@ -45,8 +44,8 @@ func FuzzCheckIstioOperatorSpec(data []byte) int {
 	if err != nil {
 		return 0
 	}
-	_ = validate.CheckIstioOperatorSpec(ispec, false)
-	_ = validate.CheckIstioOperatorSpec(ispec, true)
+	_ = validate.CheckIstioOperatorSpec(ispec)
+	_ = validate.CheckIstioOperatorSpec(ispec)
 	return 1
 }
 
@@ -58,7 +57,7 @@ func FuzzV1Alpha1ValidateConfig(data []byte) int {
 	if err != nil {
 		return 0
 	}
-	_, _ = validation.ValidateConfig(false, iop)
+	_, _ = validation.ValidateConfig(iop)
 	return 1
 }
 
@@ -71,11 +70,6 @@ func FuzzGetEnabledComponents(data []byte) int {
 		return 0
 	}
 	_, _ = translate.GetEnabledComponents(iopSpec)
-	return 1
-}
-
-func FuzzUnmarshalAndValidateIOPS(data []byte) int {
-	_, _ = istio.UnmarshalAndValidateIOPS(string(data))
 	return 1
 }
 

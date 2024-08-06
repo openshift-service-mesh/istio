@@ -17,7 +17,7 @@ package validate
 import (
 	"testing"
 
-	"istio.io/api/operator/v1alpha1"
+	"istio.io/istio/operator/pkg/apis/istio/v1alpha1"
 	"istio.io/istio/operator/pkg/util"
 )
 
@@ -193,7 +193,7 @@ values:
 				t.Fatalf("unmarshalWithJSONPB(%s): got error %s", tt.desc, err)
 			}
 
-			errs := CheckIstioOperatorSpec(ispec, false)
+			errs := CheckIstioOperatorSpec(ispec)
 			if gotErrs, wantErrs := errs, tt.wantErrs; !util.EqualErrors(gotErrs, wantErrs) {
 				t.Errorf("ProtoToValues(%s)(%v): gotErrs:%s, wantErrs:%s", tt.desc, tt.yamlStr, gotErrs, wantErrs)
 			}
