@@ -48,6 +48,7 @@ func TestDependencies(t *testing.T) {
 			exceptions: []string{
 				`^k8s\.io/(utils|klog)/`,
 				`^k8s\.io/apimachinery/pkg/types`,
+				`^k8s\.io/apimachinery/pkg/version`,
 				`^k8s\.io/apimachinery/pkg/util/(rand|version)`,
 				`envoy/type/|envoy/annotations|envoy/config/core/`,
 				`envoy/extensions/transport_sockets/tls/`,
@@ -66,7 +67,6 @@ func TestDependencies(t *testing.T) {
 				`^k8s\.io`,
 				`^sigs\.k8s\.io/gateway-api`,
 				`^github\.com/google/cel-go`,
-				`^github\.com/antlr/antlr4`,
 				`^github\.com/lestrrat-go/jwx/jwk`,
 				`^github\.com/envoyproxy`,
 				`^istio\.io/api`,
@@ -148,7 +148,7 @@ func TestDependencies(t *testing.T) {
 		})
 	}
 	t.Run("exhaustive", func(t *testing.T) {
-		all, err := getDependencies(env.IstioSrc+"/...", "", true)
+		all, err := getDependencies(env.IstioSrc+"/...", "integ", true)
 		assert.NoError(t, err)
 		for _, d := range allDenials {
 			found := false
