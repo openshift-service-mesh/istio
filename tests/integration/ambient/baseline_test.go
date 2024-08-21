@@ -1490,6 +1490,29 @@ spec:
 				Check:  check.And(check.OK(), check.Protocol("HTTP/2.0")),
 			},
 		},
+		{
+			name: "port level TLS",
+			config: `
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: "{{.Host}}"
+spec:
+  host: "{{.Host}}"
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: 443
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true
+`,
+			call: echo.CallOptions{
+				// Send to HTTPS port but over HTTP
+				Port:   dst.PortForName("https"),
+				Scheme: scheme.HTTP,
+			},
+		},
 	}
 	framework.NewTest(t).Run(func(t framework.TestContext) {
 		for _, tt := range cases {
@@ -1861,9 +1884,6 @@ metadata:
 spec:
   hosts:
   - dummy.example.com
-  addresses:
-  - 240.240.240.255
-  - 2001:2::f0f0:255
   ports:
   - number: 80
     name: http
@@ -1879,7 +1899,6 @@ spec:
 `).
 				WithParams(param.Params{}.SetWellKnown(param.Namespace, apps.Namespace))
 
-			v4, v6 := getSupportedIPFamilies(t)
 			ips, ports := istio.DefaultIngressOrFail(t, t).HTTPAddresses()
 			for _, tc := range testCases {
 				tc := tc
@@ -1899,23 +1918,13 @@ spec:
 								"IngressHttpPort": ports[i],
 							})).
 							Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
-								// TODO validate L7 processing/some headers indicating we reach the svc we wanted
-								if v4 {
-									from.CallOrFail(t, echo.CallOptions{
-										Address: "240.240.240.255",
-										Port:    to.PortForName("http"),
-										// If request is sent before service is processed it will hit 10s timeout, so fail faster
-										Timeout: time.Millisecond * 500,
-									})
-								}
-								if v6 {
-									from.CallOrFail(t, echo.CallOptions{
-										Address: "2001:2::f0f0:255",
-										Port:    to.PortForName("http"),
-										// If request is sent before service is processed it will hit 10s timeout, so fail faster
-										Timeout: time.Millisecond * 500,
-									})
-								}
+								from.CallOrFail(t, echo.CallOptions{
+									Address:   "dummy.example.com",
+									DualStack: true,
+									Port:      to.PortForName("http"),
+									// If request is sent before service is processed it will hit 10s timeout, so fail faster
+									Timeout: time.Millisecond * 500,
+								})
 							})
 					})
 				}
@@ -2012,9 +2021,6 @@ metadata:
 spec:
   hosts:
   - dummy.example.com
-  addresses:
-  - 240.240.240.255
-  - 2001:2::f0f0:255
   ports:
   - number: 80
     name: http
@@ -2028,7 +2034,6 @@ spec:
 `).
 				WithParams(param.Params{}.SetWellKnown(param.Namespace, apps.Namespace))
 
-			v4, v6 := getSupportedIPFamilies(t)
 			ips, ports := istio.DefaultIngressOrFail(t, t).HTTPAddresses()
 			for _, tc := range testCases {
 				tc := tc
@@ -2049,20 +2054,12 @@ spec:
 							})).
 							Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
 								// TODO validate L7 processing/some headers indicating we reach the svc we wanted
-								if v4 {
-									from.CallOrFail(t, echo.CallOptions{
-										Address: "240.240.240.255",
-										Port:    to.PortForName("http"),
-										Timeout: time.Millisecond * 500,
-									})
-								}
-								if v6 {
-									from.CallOrFail(t, echo.CallOptions{
-										Address: "2001:2::f0f0:255",
-										Port:    to.PortForName("http"),
-										Timeout: time.Millisecond * 500,
-									})
-								}
+								from.CallOrFail(t, echo.CallOptions{
+									Address:   "dummy.example.com",
+									DualStack: true,
+									Port:      to.PortForName("http"),
+									Timeout:   time.Millisecond * 500,
+								})
 							})
 					})
 				}
@@ -2172,7 +2169,6 @@ spec:
 func TestServiceEntryDNSWithAutoAssign(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(t framework.TestContext) {
-			t.Skip("this will work once we resolve https://github.com/istio/ztunnel/issues/582")
 			yaml := `apiVersion: networking.istio.io/v1
 kind: ServiceEntry
 metadata:
