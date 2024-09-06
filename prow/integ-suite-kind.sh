@@ -33,6 +33,9 @@ set -x
 source "${ROOT}/prow/lib.sh"
 setup_and_export_git_sha
 
+# remove gcloud helpers, it doesn't play well in OSSM Prow
+yq 'del(.credHelpers)' -i "${HOME}/.docker/config.json"
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/common/scripts/kind_provisioner.sh"
 
