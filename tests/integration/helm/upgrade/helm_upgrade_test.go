@@ -100,6 +100,8 @@ func TestStableRevisionLabelsUpgradeFromTwoMinorRelease(t *testing.T) {
 
 // TestAmbientInPlaceUpgradeFromPreviousMinorRelease tests Istio upgrade using Helm with ambient profile for Istio 1.(n-1)
 func TestAmbientInPlaceUpgradeFromPreviousMinorRelease(t *testing.T) {
+	// https://issues.redhat.com/browse/OSSM-6571
+	t.Skip("https://github.com/istio/istio/issues/1")
 	framework.
 		NewTest(t).
 		Run(performInPlaceUpgradeFunc(previousSupportedVersion, true))
