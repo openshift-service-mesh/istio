@@ -48,12 +48,16 @@ global:
 
 // TestAmbientInstall tests Istio ambient profile installation using Helm
 func TestAmbientInstall(t *testing.T) {
+	// https://issues.redhat.com/browse/OSSM-6571
+	t.Skip("https://github.com/istio/istio/issues/1")
 	framework.
 		NewTest(t).
 		Run(setupInstallation(ambientProfileOverride, true, DefaultNamespaceConfig, ""))
 }
 
 func TestAmbientInstallMultiNamespace(t *testing.T) {
+	// https://issues.redhat.com/browse/OSSM-6571
+	t.Skip("https://github.com/istio/istio/issues/1")
 	tests := []struct {
 		name     string
 		nsConfig NamespaceConfig
