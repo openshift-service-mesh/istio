@@ -100,7 +100,7 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.work_dir=${ARTIFACTS_DIR}"
           "--istio.test.skipTProxy=true"
           "--istio.test.skipVM=true"
-          "--istio.test.kube.helm.values=profile=openshift,global.platform=openshift"
+          "--istio.test.kube.helm.values=global.platform=openshift"
           "--istio.test.istio.enableCNI=true"
           "--istio.test.hub=${HUB}"
           "--istio.test.tag=${TAG}"
