@@ -5,6 +5,9 @@ ARG ISTIO_BASE_REGISTRY=gcr.io/istio-release
 
 FROM ${ISTIO_BASE_REGISTRY}/app_sidecar_base_${VM_IMAGE_NAME}_${VM_IMAGE_VERSION}:${BASE_VERSION}
 
+RUN yum install -y openssl-3.0.7 openssl-devel-3.0.7 && \
+    yum clean all && rm -rf /var/cache/yum
+
 # Install the certs.
 COPY certs/                           /var/lib/istio/
 COPY certs/default/                   /var/run/secrets/istio/
