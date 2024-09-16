@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -30,6 +29,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/yaml"
 
 	networking "istio.io/api/networking/v1alpha3"
 	clientnetworking "istio.io/client-go/pkg/apis/networking/v1"
@@ -73,20 +73,6 @@ const (
 	RetryTimeOut = 5 * time.Minute
 	Timeout      = 2 * time.Minute
 
-	defaultValues = `
-global:
-  hub: %s
-  %s
-  variant: %q
-revision: "%s"
-`
-	ambientProfileOverride = `
-global:
-  hub: %s
-  %s
-  variant: %q
-profile: ambient
-`
 	sampleEnvoyFilter = `
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
@@ -175,22 +161,6 @@ spec:
 // ManifestsChartPath is path of local Helm charts used for testing.
 var ManifestsChartPath = filepath.Join(env.IstioSrc, "manifests/charts")
 
-// adjustValuesForOpenShift adds the "openshift" or "openshift-ambient" profile to the
-// values if tests are running in OpenShift, and returns the modified values
-func adjustValuesForOpenShift(ctx framework.TestContext, values string) string {
-	if !ctx.Settings().OpenShift {
-		return values
-	}
-
-	if !strings.Contains(values, "profile: ") {
-		values += "\nprofile: openshift\n"
-	} else if strings.Contains(values, "profile: ambient") {
-		values = strings.ReplaceAll(values, "profile: ambient", "profile: openshift-ambient")
-	}
-
-	return values
-}
-
 // getValuesOverrides returns the values file created to pass into Helm override default values
 // for the hub and tag.
 //
@@ -201,19 +171,45 @@ func adjustValuesForOpenShift(ctx framework.TestContext, values string) string {
 func GetValuesOverrides(ctx framework.TestContext, hub, tag, variant, revision string, isAmbient bool) string {
 	workDir := ctx.CreateTmpDirectoryOrFail("helm")
 
+	// Create the default base map string for the values file
+	values := map[string]interface{}{
+		"global": map[string]interface{}{
+			"hub":     hub,
+			"variant": variant,
+		},
+		"revision": revision,
+	}
+
+	globalValues := values["global"].(map[string]interface{})
 	// Only use a tag value if not empty. Not having a tag in values means: Use the tag directly from the chart
 	if tag != "" {
-		tag = "tag: " + tag
+		globalValues["tag"] = tag
 	}
 
-	overrideValues := fmt.Sprintf(defaultValues, hub, tag, variant, revision)
-	if isAmbient {
-		overrideValues = fmt.Sprintf(ambientProfileOverride, hub, tag, variant)
+	// Handle Openshift platform override if set
+	if ctx.Settings().OpenShift {
+		globalValues["platform"] = "openshift"
+		// TODO: do FLATTEN_GLOBALS_REPLACEMENT to avoid this set
+		values["platform"] = "openshift"
+	} else {
+		globalValues["platform"] = "" // no platform
 	}
-	overrideValues = adjustValuesForOpenShift(ctx, overrideValues)
+
+	// Handle Ambient profile override if set
+	if isAmbient {
+		values["profile"] = "ambient"
+		// Remove revision for ambient profile
+		delete(values, "revision")
+	}
+
+	// Marshal the map to a YAML string
+	overrideValues, err := yaml.Marshal(values)
+	if err != nil {
+		ctx.Fatalf("failed to marshal override values to YAML: %v", err)
+	}
 
 	overrideValuesFile := filepath.Join(workDir, "values.yaml")
-	if err := os.WriteFile(overrideValuesFile, []byte(overrideValues), os.ModePerm); err != nil {
+	if err := os.WriteFile(overrideValuesFile, overrideValues, os.ModePerm); err != nil {
 		ctx.Fatalf("failed to write iop cr file: %v", err)
 	}
 
