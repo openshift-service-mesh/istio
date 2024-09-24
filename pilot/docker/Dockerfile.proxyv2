@@ -1,24 +1,16 @@
-# BASE_DISTRIBUTION is used to switch between the old base distribution and distroless base images
-ARG BASE_DISTRIBUTION=debug
-
-# Version is the base image version from the TLD Makefile
-ARG BASE_VERSION=latest
-ARG ISTIO_BASE_REGISTRY=gcr.io/istio-release
-
-# The following section is used as base image if BASE_DISTRIBUTION=debug
-FROM ${ISTIO_BASE_REGISTRY}/base:${BASE_VERSION} AS debug
-
-# The following section is used as base image if BASE_DISTRIBUTION=distroless
-FROM ${ISTIO_BASE_REGISTRY}/iptables:${BASE_VERSION} AS distroless
-
-# This will build the final image based on either debug or distroless from above
-# hadolint ignore=DL3006
-FROM ${BASE_DISTRIBUTION:-debug}
+FROM rockylinux/rockylinux:9.4
 
 WORKDIR /
 
 ARG proxy_version
 ARG SIDECAR=envoy
+
+# hadolint ignore=DL3039,DL3041
+RUN dnf -y install iptables iproute openssl-3.0.7 && \
+    dnf -y clean all
+
+RUN ln -s /lib64/libssl.so.3.0.7 /lib64/libssl.so && \
+    ln -s /lib64/libcrypto.so.3.0.7 /lib64/libcrypto.so
 
 # Copy Envoy bootstrap templates used by pilot-agent
 COPY envoy_bootstrap.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
