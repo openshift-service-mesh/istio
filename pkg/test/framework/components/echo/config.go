@@ -76,7 +76,7 @@ const (
 	Debian12     VMDistro = "Debian12"
 	Rockylinux9  VMDistro = "Rockylinux9"
 
-	DefaultVMDistro = UbuntuNoble
+	DefaultVMDistro = Rockylinux9
 )
 
 // Config defines the options for creating an Echo component.
