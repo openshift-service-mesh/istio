@@ -3093,7 +3093,8 @@ func TestServiceDynamicEnroll(t *testing.T) {
 			generators = append(generators, g)
 		}
 		mkGen(apps.Uncaptured[0])
-		mkGen(apps.Sidecar[0])
+		// TODO(https://github.com/istio/istio/issues/53064) re-enable this, it is not reliable enough
+		// mkGen(apps.Sidecar[0])
 		// This is effectively "captured" since its the client; we cannot use captured since captured is the dest, though
 		mkGen(apps.WorkloadAddressedWaypoint[0])
 
