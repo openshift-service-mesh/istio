@@ -195,6 +195,7 @@ func (s *scope) dump(ctx resource.Context, recursive bool) {
 	skip := s.skipDump
 	s.mu.Unlock()
 	if skip {
+		scopes.Framework.Infof("XXXXX Skipping dump!")
 		return
 	}
 	st := time.Now()

@@ -306,6 +306,7 @@ func (t *testImpl) doRun(ctx *testContext, fn func(ctx TestContext), parallel bo
 		message := "passed"
 		if t.goTest.Failed() {
 			message = "failed"
+
 		}
 		scopes.Framework.Infof("=== DONE (%s):  Test: '%s[%s] (%v)' ===",
 			message,

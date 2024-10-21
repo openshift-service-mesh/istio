@@ -431,7 +431,11 @@ func (s *suiteImpl) run() (errLevel int) {
 	start := time.Now()
 
 	defer func() {
+		scopes.Framework.Infof("=== XXXXX errLevel: %v ===", errLevel)
+		scopes.Framework.Infof("=== XXXXX CIMode: %v ===", ctx.Settings().CIMode)
+
 		if errLevel != 0 && ctx.Settings().CIMode {
+			scopes.Framework.Infof("=== XXXXX Dumping  ===")
 			rt.Dump(ctx)
 		}
 
