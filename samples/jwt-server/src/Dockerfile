@@ -18,7 +18,7 @@ WORKDIR /go/src/istio.io/jwt-server/
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o jwt-server main.go
 
-FROM gcr.io/distroless/static-debian11@sha256:21d3f84a4f37c36199fd07ad5544dcafecc17776e3f3628baf9a57c8c0181b3f AS distroless
+FROM gcr.io/distroless/static-debian11@sha256:1dbe426d60caed5d19597532a2d74c8056cd7b1674042b88f7328690b5ead8ed AS distroless
 
 WORKDIR /bin/
 # copy the jwt-server binary to a separate container based on BASE_DISTRIBUTION
