@@ -583,9 +583,9 @@ func (o *RemoteSecretOptions) addFlags(flagset *pflag.FlagSet) {
 		"Create a secret with this service account's credentials. Default value is \""+
 			constants.DefaultServiceAccountName+"\" if --type is \"remote\", \""+
 			constants.DefaultConfigServiceAccountName+"\" if --type is \"config\".")
-	flagset.BoolVar(&o.CreateServiceAccount, "create-service-account", true,
+	flagset.BoolVar(&o.CreateServiceAccount, "create-service-account", false,
 		"If true, the service account needed for creating the remote secret will be created "+
-			"if it doesn't exist.")
+			"if it doesn't exist. Disabled by default when using Sail Operator or OpenShift Service Mesh 3 Operator")
 	flagset.StringVar(&o.ClusterName, "name", "",
 		"Name of the local cluster whose credentials are stored "+
 			"in the secret. If a name is not specified the kube-system namespace's UUID of "+
