@@ -383,6 +383,10 @@ func legacyGetServiceAccountSecret(
 }
 
 func getOrCreateServiceAccount(client kube.CLIClient, opt RemoteSecretOptions) (*v1.ServiceAccount, error) {
+	if opt.CreateServiceAccount {
+		return nil, fmt.Errorf("'--create-service-account=false' should be set when using OpenShift Service Mesh Operator.")
+	}
+
 	if sa, err := client.Kube().CoreV1().ServiceAccounts(opt.Namespace).Get(
 		context.TODO(), opt.ServiceAccountName, metav1.GetOptions{}); err == nil {
 		return sa, nil
@@ -583,9 +587,9 @@ func (o *RemoteSecretOptions) addFlags(flagset *pflag.FlagSet) {
 		"Create a secret with this service account's credentials. Default value is \""+
 			constants.DefaultServiceAccountName+"\" if --type is \"remote\", \""+
 			constants.DefaultConfigServiceAccountName+"\" if --type is \"config\".")
-	flagset.BoolVar(&o.CreateServiceAccount, "create-service-account", false,
+	flagset.BoolVar(&o.CreateServiceAccount, "create-service-account", true,
 		"If true, the service account needed for creating the remote secret will be created "+
-			"if it doesn't exist. Disabled by default when using Sail Operator or OpenShift Service Mesh 3 Operator")
+			"if it doesn't exist.")
 	flagset.StringVar(&o.ClusterName, "name", "",
 		"Name of the local cluster whose credentials are stored "+
 			"in the secret. If a name is not specified the kube-system namespace's UUID of "+
