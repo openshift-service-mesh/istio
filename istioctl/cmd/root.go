@@ -221,7 +221,7 @@ debug and diagnose their Istio mesh.
 
 	upgradeCmd := mesh.UpgradeCmd(ctx)
 	hideInheritedFlags(upgradeCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(upgradeCmd, "use IstioRevision CR"))
+	rootCmd.AddCommand(unsupportedCmd(upgradeCmd, "update spec.version in Istio CR"))
 
 	bugReportCmd := bugreport.Cmd(ctx, root.LoggingOptions)
 	hideInheritedFlags(bugReportCmd, cli.FlagNamespace, cli.FlagIstioNamespace)
