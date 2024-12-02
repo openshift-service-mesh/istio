@@ -143,7 +143,7 @@ debug and diagnose their Istio mesh.
 
 	kubeInjectCmd := kubeinject.InjectCommand(ctx)
 	hideInheritedFlags(kubeInjectCmd, cli.FlagNamespace)
-	rootCmd.AddCommand(unsupportedCmd(kubeInjectCmd))
+	rootCmd.AddCommand(unsupportedCmd(kubeInjectCmd, "set the `istio-injection=enabled` label"))
 
 	experimentalCmd := &cobra.Command{
 		Use:     "experimental",
@@ -187,10 +187,10 @@ debug and diagnose their Istio mesh.
 	rootCmd.AddCommand(admin.Cmd(ctx))
 	experimentalCmd.AddCommand(injector.Cmd(ctx))
 
-	rootCmd.AddCommand(unsupportedCmd(mesh.UninstallCmd(ctx)))
+	rootCmd.AddCommand(unsupportedCmd(mesh.UninstallCmd(ctx), "delete Istio CR"))
 
-	experimentalCmd.AddCommand(unsupportedCmd(authz.AuthZ(ctx)))
-	rootCmd.AddCommand(unsupportedCmd(authz.AuthZ(ctx)))
+	experimentalCmd.AddCommand(unsupportedCmd(authz.AuthZ(ctx), "none"))
+	rootCmd.AddCommand(unsupportedCmd(authz.AuthZ(ctx), "none"))
 	experimentalCmd.AddCommand(metrics.Cmd(ctx))
 	experimentalCmd.AddCommand(describe.Cmd(ctx))
 	experimentalCmd.AddCommand(config.Cmd())
@@ -200,8 +200,8 @@ debug and diagnose their Istio mesh.
 	experimentalCmd.AddCommand(proxyconfig.StatsConfigCmd(ctx))
 	experimentalCmd.AddCommand(checkinject.Cmd(ctx))
 	//TODO: revisit once ambient mode is supported in Sail Operator.
-	rootCmd.AddCommand(unsupportedCmd(waypoint.Cmd(ctx)))
-	rootCmd.AddCommand(unsupportedCmd(ztunnelconfig.ZtunnelConfig(ctx)))
+	rootCmd.AddCommand(unsupportedCmd(waypoint.Cmd(ctx), "none"))
+	rootCmd.AddCommand(unsupportedCmd(ztunnelconfig.ZtunnelConfig(ctx), "none"))
 
 	analyzeCmd := analyze.Analyze(ctx)
 	hideInheritedFlags(analyzeCmd, cli.FlagIstioNamespace)
@@ -209,27 +209,27 @@ debug and diagnose their Istio mesh.
 
 	dashboardCmd := dashboard.Dashboard(ctx)
 	hideInheritedFlags(dashboardCmd, cli.FlagNamespace, cli.FlagIstioNamespace)
-	rootCmd.AddCommand(unsupportedCmd(dashboardCmd))
+	rootCmd.AddCommand(unsupportedCmd(dashboardCmd, "use Kiali"))
 
 	manifestCmd := mesh.ManifestCmd(ctx)
 	hideInheritedFlags(manifestCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(manifestCmd))
+	rootCmd.AddCommand(unsupportedCmd(manifestCmd, "none"))
 
 	installCmd := mesh.InstallCmd(ctx)
 	hideInheritedFlags(installCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(installCmd))
+	rootCmd.AddCommand(unsupportedCmd(installCmd, "create Istio CR"))
 
 	upgradeCmd := mesh.UpgradeCmd(ctx)
 	hideInheritedFlags(upgradeCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(upgradeCmd))
+	rootCmd.AddCommand(unsupportedCmd(upgradeCmd, "use IstioRevision CR"))
 
 	bugReportCmd := bugreport.Cmd(ctx, root.LoggingOptions)
 	hideInheritedFlags(bugReportCmd, cli.FlagNamespace, cli.FlagIstioNamespace)
-	rootCmd.AddCommand(unsupportedCmd(bugReportCmd))
+	rootCmd.AddCommand(unsupportedCmd(bugReportCmd, "use istio-must-gather"))
 
 	tagCmd := tag.TagCommand(ctx)
 	hideInheritedFlags(tag.TagCommand(ctx), cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(tagCmd))
+	rootCmd.AddCommand(unsupportedCmd(tagCmd, "use IstioRevisionTag CR"))
 
 	// leave the multicluster commands in x for backwards compat
 	rootCmd.AddCommand(multicluster.NewCreateRemoteSecretCommand(ctx))
@@ -301,24 +301,10 @@ func seeExperimentalCmd(name string) *cobra.Command {
 	}
 }
 
-var unsupportedCmdAlternatives = map[string]string{
-	"authz":          "none",
-	"bug-report":     "use istio-must-gather",
-	"dashboard":      "use Kiali",
-	"install":        "create Istio CR",
-	"kube-inject":    "set the `istio-injection=enabled` label",
-	"manifest":       "none",
-	"tag":            "use IstioRevisionTag CR",
-	"uninstall":      "delete Istio CR",
-	"upgrade":        "use IstioRevision CR",
-	"waypoint":       "none", //TODO: revisit once ambient mode is supported in Sail Operator.
-	"ztunnel-config": "none", //TODO: revisit once ambient mode is supported in Sail Operator.
-}
-
 // unsupportedCmd is used to set commands that are not supported for OpenShift Service Mesh.
-func unsupportedCmd(cmd *cobra.Command) *cobra.Command {
+func unsupportedCmd(cmd *cobra.Command, alternative string) *cobra.Command {
 	cmdName := cmd.Name()
-	msg := fmt.Sprintf("Command `%s` not supported in OpenShift Service Mesh context. Alternative: %s", cmdName, unsupportedCmdAlternatives[cmdName])
+	msg := fmt.Sprintf("Command `%s` not supported in OpenShift Service Mesh context. Alternative: %s", cmdName, alternative)
 	return &cobra.Command{
 		Use:   cmdName,
 		Short: msg,
