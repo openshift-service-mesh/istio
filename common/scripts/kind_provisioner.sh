@@ -165,6 +165,12 @@ function setup_kind_cluster() {
     echo "No existing kind cluster with name ${NAME}. Continue..."
   fi
 
+  # Create the docker network beforehand so "kind create cluster" doesn't create it with ipv6
+  echo "Deleting previous KinD docker network"
+  docker network rm kind || true
+  echo "Creating the docker network for kind"
+  docker network create -d=bridge -o com.docker.network.bridge.enable_ip_masquerade=true kind
+
   # explicitly disable shellcheck since we actually want $NAME to expand now
   # shellcheck disable=SC2064
   if [[ "${CLEANUP}" == "true" ]]; then
