@@ -143,6 +143,25 @@ function setup_kind_cluster_retry() {
   retry setup_kind_cluster "$@"
 }
 
+function log_debug_info() {
+  set +x
+  cat <<EOF
+------------------------------------------------
+Kernel details: $(uname -a)
+Kind version: $(kind version)
+IPv6 status: $(sysctl net.ipv6.conf.all.disable_ipv6)
+Interface list: $(ip a)
+IP6tables version: $(ip6tables --version)
+IP6tables output: $(sudo ip6tables -t nat -L)
+Docker network list:
+$(docker network ls)
+Docker IPv6 config:
+$(cat /etc/docker/daemon.json)
+------------------------------------------------
+EOF
+  set -x
+}
+
 # setup_kind_cluster creates new KinD cluster with given name, image and configuration
 # 1. NAME: Name of the Kind cluster (optional)
 # 2. IMAGE: Node image used by KinD (optional)
@@ -184,6 +203,8 @@ function setup_kind_cluster() {
     KIND_DISABLE_CNI="true"
   fi
 
+  log_debug_info
+
   # Create KinD cluster
   if ! (yq eval "${CONFIG}" --expression ".networking.disableDefaultCNI = ${KIND_DISABLE_CNI}" \
     --expression ".networking.ipFamily = \"${IP_FAMILY}\"" | \
@@ -195,7 +216,7 @@ function setup_kind_cluster() {
   kubectl taint nodes "${NAME}"-control-plane node-role.kubernetes.io/control-plane- 2>/dev/null || true
 
   # Determine what CNI to install
-  case "${KUBERNETES_CNI:-}" in 
+  case "${KUBERNETES_CNI:-}" in
 
     "calico")
       echo "Installing Calico CNI"
