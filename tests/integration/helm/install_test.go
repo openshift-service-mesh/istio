@@ -46,6 +46,8 @@ func TestDefaultInstall(t *testing.T) {
 
 // TestAmbientInstall tests Istio ambient profile installation using Helm
 func TestAmbientInstall(t *testing.T) {
+	// https://issues.redhat.com/browse/OSSM-6571
+	t.Skip("https://github.com/istio/istio/issues/1")
 	valuesAmbient := map[string]interface{}{
 		"profile": "ambient",
 	}
@@ -55,6 +57,8 @@ func TestAmbientInstall(t *testing.T) {
 }
 
 func TestAmbientInstallMultiNamespace(t *testing.T) {
+	// https://issues.redhat.com/browse/OSSM-6571
+	t.Skip("https://github.com/istio/istio/issues/1")
 	nsConfig := NewNamespaceConfig(
 		types.NamespacedName{
 			Name: CniReleaseName, Namespace: "istio-cni",
