@@ -4242,7 +4242,7 @@ spec:
 			//TODO: Fix it properly as recommended https://github.com/istio/istio/pull/54244#pullrequestreview-2489497585
 			Retry: echo.Retry{
 				Options: []retry.Option{retry.Timeout(2 * time.Minute)},
-			}
+			},
 		},
 		setupOpts: setHostHeader,
 	})
