@@ -289,6 +289,7 @@ func ConfigureLogging(_ *cobra.Command, _ []string) error {
 // Other alternative
 // for graduatedCmd see https://github.com/istio/istio/pull/26408
 // for softGraduatedCmd see https://github.com/istio/istio/pull/26563
+// nolint: unused
 func seeExperimentalCmd(name string) *cobra.Command {
 	msg := fmt.Sprintf("(%s is experimental. Use `istioctl experimental %s`)", name, name)
 	return &cobra.Command{
