@@ -199,7 +199,7 @@ debug and diagnose their Istio mesh.
 	experimentalCmd.AddCommand(precheck.Cmd(ctx))
 	experimentalCmd.AddCommand(proxyconfig.StatsConfigCmd(ctx))
 	experimentalCmd.AddCommand(checkinject.Cmd(ctx))
-	//TODO: revisit once ambient mode is supported in Sail Operator.
+	// TODO: revisit once ambient mode is supported in Sail Operator.
 	rootCmd.AddCommand(unsupportedCmd(waypoint.Cmd(ctx), "none"))
 	rootCmd.AddCommand(unsupportedCmd(ztunnelconfig.ZtunnelConfig(ctx), "none"))
 
@@ -290,6 +290,7 @@ func ConfigureLogging(_ *cobra.Command, _ []string) error {
 // Other alternative
 // for graduatedCmd see https://github.com/istio/istio/pull/26408
 // for softGraduatedCmd see https://github.com/istio/istio/pull/26563
+// nolint: unused
 func seeExperimentalCmd(name string) *cobra.Command {
 	msg := fmt.Sprintf("(%s is experimental. Use `istioctl experimental %s`)", name, name)
 	return &cobra.Command{

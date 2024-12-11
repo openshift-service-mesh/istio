@@ -4271,7 +4271,7 @@ spec:
 			},
 			Check: check.Status(http.StatusOK),
 			// Retry with a longer duration until the AWS LB is available
-			//TODO: Fix it properly as recommended https://github.com/istio/istio/pull/54244#pullrequestreview-2489497585
+			// TODO: Fix it properly as recommended https://github.com/istio/istio/pull/54244#pullrequestreview-2489497585
 			Retry: echo.Retry{
 				Options: []retry.Option{retry.Timeout(2 * time.Minute)},
 			},
@@ -4305,7 +4305,7 @@ spec:
 			},
 			Check: check.Status(http.StatusOK),
 			// Retry with a longer duration until the AWS LB is available
-			//TODO: Fix it properly as recommended https://github.com/istio/istio/pull/54244#pullrequestreview-2489497585
+			// TODO: Fix it properly as recommended https://github.com/istio/istio/pull/54244#pullrequestreview-2489497585
 			Retry: echo.Retry{
 				Options: []retry.Option{retry.Timeout(2 * time.Minute)},
 			},
