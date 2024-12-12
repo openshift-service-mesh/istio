@@ -245,6 +245,11 @@ func (s *meshDataplane) ConstructInitialSnapshot(ambientPods []*corev1.Pod) erro
 }
 
 func (s *meshDataplane) AddPodToMesh(ctx context.Context, pod *corev1.Pod, podIPs []netip.Addr, netNs string) error {
+	// Ordering is important in this func:
+	//
+	// - Inject rules and add to ztunnel FIRST
+	// - Annotate IF rule injection doesn't fail.
+	// - Add pod IP to ipset IF none of the above has failed, as a last step
 	log := log.WithLabels("ns", pod.Namespace, "name", pod.Name)
 	var retErr error
 	err := s.netServer.AddPodToMesh(ctx, pod, podIPs, netNs)
@@ -357,13 +362,28 @@ func (s *meshDataplane) syncHostIPSets(ambientPods []*corev1.Pod) error {
 // 3. update ipsets accordingly
 // 4. return the ones we added successfully, and errors for any we couldn't (dupes)
 //
-// Dupe IPs should be considered an IPAM error and should never happen.
+// For each set (v4, v6), each pod IP can appear exactly once.
+//
+// Note that for adds, because we have 2 potential sources of async adds (CNI plugin and informer)
+// we want this to be an upsert.
+//
+// This is important to make sure reconciliation and overlapping events do not cause problems -
+// adds can come from two sources, but removes can only come from one source (informer).
+//
+// Ex:
+// Pod UID "A", IP 1.1.1.1
+// Pod UID "B", IP 1.1.1.1
+//
+// Add for UID "B", IP 1.1.1.1 is handled before Remove for UID "A", IP 1.1.1.1
+// -> we no longer have an entry for either, which is bad (pod fails healthchecks)
+//
+// So "add" always overwrites, and remove only removes if the pod IP AND the pod UID match.
 func (s *meshDataplane) addPodToHostNSIpset(pod *corev1.Pod, podIPs []netip.Addr) ([]netip.Addr, error) {
-	log := log.WithLabels("ns", pod.Namespace, "name", pod.Name)
 	// Add the pod UID as an ipset entry comment, so we can (more) easily find and delete
 	// all relevant entries for a pod later.
 	podUID := string(pod.ObjectMeta.UID)
 	ipProto := uint8(unix.IPPROTO_TCP)
+	log := log.WithLabels("ns", pod.Namespace, "name", pod.Name, "podUID", podUID, "ipset", s.hostsideProbeIPSet.Prefix)
 
 	var ipsetAddrErrs []error
 	var addedIps []netip.Addr
@@ -371,19 +391,15 @@ func (s *meshDataplane) addPodToHostNSIpset(pod *corev1.Pod, podIPs []netip.Addr
 	// For each pod IP
 	for _, pip := range podIPs {
 		// Add to host ipset
-		log.Debugf("adding pod probe to ipset %s with ip %s", s.hostsideProbeIPSet.Prefix, pip)
+		log.Debugf("adding probe ip %s to set", pip)
 		// Add IP/port combo to set. Note that we set Replace to false here - we _did_ previously
 		// set it to true, but in theory that could mask weird scenarios where K8S triggers events out of order ->
 		// an add(sameIPreused) then delete(originalIP).
 		// Which will result in the new pod starting to fail healthchecks.
-		//
-		// Since we purge on restart of CNI, and remove pod IPs from the set on every pod removal/deletion,
-		// we _shouldn't_ get any overwrite/overlap, unless something is wrong and we are asked to add
-		// a pod by an IP we already have in the set (which will give an error, which we want).
-		if err := s.hostsideProbeIPSet.AddIP(pip, ipProto, podUID, false); err != nil {
+		if err := s.hostsideProbeIPSet.AddIP(pip, ipProto, podUID, true); err != nil {
 			ipsetAddrErrs = append(ipsetAddrErrs, err)
-			log.Errorf("failed adding pod to ipset %s with ip %s: %v",
-				s.hostsideProbeIPSet.Prefix, pip, err)
+			log.Errorf("failed adding ip %s to set, error was %s",
+				pod.Name, &s.hostsideProbeIPSet.Prefix, pip, podUID, err)
 		} else {
 			addedIps = append(addedIps, pip)
 		}
@@ -392,13 +408,21 @@ func (s *meshDataplane) addPodToHostNSIpset(pod *corev1.Pod, podIPs []netip.Addr
 	return addedIps, errors.Join(ipsetAddrErrs...)
 }
 
+// removePodFromHostNSIpset will remove (v4, v6) pod IPs from the host IP set(s).
+// Note that unlike when we add the IP to the set, on removal we will simply
+// skip removing the IP if the IP matches, but the UID comment does not match our pod.
 func removePodFromHostNSIpset(pod *corev1.Pod, hostsideProbeSet *ipset.IPSet) error {
+	podUID := string(pod.ObjectMeta.UID)
+	log := log.WithLabels("ns", pod.Namespace, "name", pod.Name, "podUID", podUID, "ipset", hostsideProbeSet.Prefix)
+
 	podIPs := util.GetPodIPsIfPresent(pod)
 	for _, pip := range podIPs {
-		if err := hostsideProbeSet.ClearEntriesWithIP(pip); err != nil {
+		if uidMismatch, err := hostsideProbeSet.ClearEntriesWithIPAndComment(pip, podUID); err != nil {
 			return err
+		} else if uidMismatch != "" {
+			log.Warnf("pod ip %s could not be removed from ipset, found entry with pod UID %s instead", pip, uidMismatch)
 		}
-		log.Debugf("removed pod name %s with UID %s from host ipset %s by ip %s", pod.Name, pod.UID, hostsideProbeSet.Prefix, pip)
+		log.Debugf("removed pod from host ipset by ip %s", pip)
 	}
 
 	return nil
