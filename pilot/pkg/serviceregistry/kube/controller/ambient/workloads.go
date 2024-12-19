@@ -110,7 +110,7 @@ func (a *index) WorkloadsCollection(
 
 	NetworkGatewayWorkloads := krt.NewManyFromNothing[model.WorkloadInfo](func(ctx krt.HandlerContext) []model.WorkloadInfo {
 		a.networkUpdateTrigger.MarkDependant(ctx) // Mark we depend on out of band a.Network
-		return slices.Map(a.LookupNetworkGateways(), convertGateway)
+		return slices.Map(a.LookupAllNetworkGateway(), convertGateway)
 	}, opts.WithName("NetworkGatewayWorkloads")...)
 
 	Workloads := krt.JoinCollection([]krt.Collection[model.WorkloadInfo]{
@@ -179,7 +179,8 @@ func (a *index) workloadEntryWorkloadBuilder(
 			log.Warnf("skipping workload entry %s/%s; DNS Address resolution is not yet implemented", wle.Namespace, wle.Name)
 		} // Else it is an empty address with network set, this is ok
 
-		w.WorkloadName, w.WorkloadType = wle.Name, workloadapi.WorkloadType_POD // XXX(shashankram): HACK to impersonate pod
+		w.WorkloadName = kubelabels.WorkloadNameFromWorkloadEntry(wle.Name, wle.Annotations, wle.Labels)
+		w.WorkloadType = workloadapi.WorkloadType_POD // XXX(shashankram): HACK to impersonate pod
 		w.CanonicalName, w.CanonicalRevision = kubelabels.CanonicalService(wle.Labels, w.WorkloadName)
 
 		setTunnelProtocol(wle.Labels, wle.Annotations, w)
@@ -714,7 +715,7 @@ func constructServicesFromWorkloadEntry(p *networkingv1alpha3.WorkloadEntry, ser
 }
 
 func workloadNameAndType(pod *v1.Pod) (string, workloadapi.WorkloadType) {
-	objMeta, typeMeta := kubeutil.GetDeployMetaFromPod(pod)
+	objMeta, typeMeta := kubeutil.GetWorkloadMetaFromPod(pod)
 	switch typeMeta.Kind {
 	case "Deployment":
 		return objMeta.Name, workloadapi.WorkloadType_DEPLOYMENT
@@ -859,16 +860,8 @@ func convertGateway(gw model.NetworkGateway) model.WorkloadInfo {
 	return model.WorkloadInfo{Workload: wl}
 }
 
-func (a *index) getNetworkGateway(id string) []model.NetworkGateway {
-	gtws := a.LookupNetworkGateways()
-	slices.FilterInPlace(gtws, func(gateway model.NetworkGateway) bool {
-		return gateway.Network == network.ID(id)
-	})
-	return gtws
-}
-
-func (a *index) getNetworkGatewayAddress(network string) *workloadapi.GatewayAddress {
-	if networks := a.getNetworkGateway(network); len(networks) > 0 {
+func (a *index) getNetworkGatewayAddress(n string) *workloadapi.GatewayAddress {
+	if networks := a.LookupNetworkGateway(network.ID(n)); len(networks) > 0 {
 		// Currently only support one, so find the first one that is valid
 		for _, net := range networks {
 			if net.HBONEPort == 0 {
