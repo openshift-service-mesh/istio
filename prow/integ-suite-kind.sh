@@ -33,6 +33,9 @@ set -x
 source "${ROOT}/prow/lib.sh"
 setup_and_export_git_sha
 
+# remove gcloud helpers, it doesn't play well in OSSM Prow
+yq 'del(.credHelpers)' -i "${HOME}/.docker/config.json"
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/common/scripts/kind_provisioner.sh"
 
@@ -42,7 +45,7 @@ KIND_CONFIG=""
 CLUSTER_TOPOLOGY_CONFIG_FILE="${ROOT}/prow/config/topology/multicluster.json"
 
 export FAST_VM_BUILDS=true
-export ISTIO_DOCKER_BUILDER="${ISTIO_DOCKER_BUILDER:-crane}"
+export ISTIO_DOCKER_BUILDER="${ISTIO_DOCKER_BUILDER:-docker}"
 
 PARAMS=()
 
