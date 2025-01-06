@@ -52,7 +52,7 @@ func (e WorkloadGenerator) GenerateDeltas(
 		return nil, nil, model.XdsLogDetails{}, false, nil
 	}
 
-	subs := sets.New(w.ResourceNames...)
+	subs := w.ResourceNames
 	var addresses sets.String
 	if isReq {
 		// this is from request, we only send response for the subscribed address
@@ -108,11 +108,17 @@ func (e WorkloadGenerator) GenerateDeltas(
 	haveAliases := sets.New[string]()
 	for _, addr := range addrs {
 		// TODO(@hzxuzhonghu): calculate removed with aliases in `AddressInformation`
-		aliases := addr.Aliases()
-		removed.DeleteAll(aliases...)
+		var aliases []string
+		if !w.Wildcard {
+			// For on-demand, a client may request by an alias, so we need to compute things.
+			// For wildcard subscriptions, alias is not needed and we always use the canonical resource name.
+			// Avoid Alias computation in these situations
+			aliases := addr.Aliases()
+			removed.DeleteAll(aliases...)
+			haveAliases.InsertAll(aliases...)
+		}
 		n := addr.ResourceName()
 		have.Insert(n)
-		haveAliases.InsertAll(aliases...)
 		switch w.TypeUrl {
 		case v3.WorkloadType:
 			if addr.GetWorkload() != nil {
@@ -142,11 +148,11 @@ func (e WorkloadGenerator) GenerateDeltas(
 	if !w.Wildcard {
 		// For on-demand, we may have requested a VIP but gotten Pod IPs back. We need to update
 		// the internal book-keeping to subscribe to the Pods, so that we push updates to those Pods.
-		w.ResourceNames = subs.Merge(have).UnsortedList()
+		w.ResourceNames = subs.Merge(have)
 	} else {
 		// For wildcard, we record all resources that have been pushed and not removed
 		// It was to correctly calculate removed resources during full push alongside with specific address removed.
-		w.ResourceNames = subs.Merge(have).Difference(removed).UnsortedList()
+		w.ResourceNames = subs.Merge(have).DeleteAllSet(removed)
 	}
 	return resources, removed.UnsortedList(), model.XdsLogDetails{}, true, nil
 }
@@ -184,7 +190,7 @@ func (e WorkloadRBACGenerator) GenerateDeltas(
 		}
 	} else {
 		// Full update, expect everything
-		expected.InsertAll(w.ResourceNames...)
+		expected.Merge(w.ResourceNames)
 	}
 
 	resources := make(model.Resources, 0)
