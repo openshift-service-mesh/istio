@@ -35,6 +35,7 @@ TEST_OUTPUT_FORMAT="${TEST_OUTPUT_FORMAT:-"junit"}"
 ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
 mkdir -p "${ARTIFACTS_DIR}/junit"
 JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
+SAIL_OPERATOR_SETUP="${WD}/setup/sail-operator/sail-operator-setup.sh"
 
 # Exit immediately for non zero status
 set -e
@@ -104,7 +105,8 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.istio.enableCNI=true"
           "--istio.test.hub=${HUB}"
           "--istio.test.tag=${TAG}"
-          "--istio.test.openshift")
+          "--istio.test.openshift"
+          "--istio.test.kube.controlPlaneInstaller=${SAIL_OPERATOR_SETUP}")
 
 # Append skip tests flag if SKIP_TESTS is set
 if [ -n "${SKIP_TESTS}" ]; then

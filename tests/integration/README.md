@@ -426,6 +426,24 @@ Test suites are defined for each toplevel directory (such as `pilot` and `teleme
 
 If you need to add a new test suite, it can be added to the [job configuration](https://github.com/istio/test-infra/blob/master/prow/config/jobs/istio.yaml).
 
+### Running on Custom Operator 
+
+You can run integration tests againist a control plane deployed from a custom operator such as [sail-operator](https://github.com/istio-ecosystem/sail-operator):
+
+With setting ```--istio.test.kube.controlPlaneInstaller=#{path/to/script}``` and ```--istio.test.kube.deploy=false``` you can skip internal istio operator deployment and be able to call a script which lets you customize your deployment.
+
+By default the test runner sends 2 parameters to the external script which are working directory and the state which takes values "install" or "cleanup"
+
+```go
+	if cfg.ControlPlaneInstaller != "" && !cfg.DeployIstio {
+		scopes.Framework.Infof("============= Execute Control Plane Installer =============")
+		cmd := exec.Command(cfg.ControlPlaneInstaller, workDir, "install")
+		if err := cmd.Run(); err != nil {
+			fmt.Println("Error: ", err)
+		}
+    }
+```
+
 ## Environments
 
 The test binaries run in a Kubernetes cluster, but the test logic runs in the test binary.
@@ -530,6 +548,7 @@ The test framework supports the following command-line flags:
 | --istio.test.kube.helm.values | string | Manual overrides for Helm values file. Only valid when deploying Istio. |
 | --istio.test.kube.helm.iopFile | string | IstioOperator spec file. This can be an absolute path or relative to the repository root. Defaults to "tests/integration/iop-integration-test-defaults.yaml". |
 | --istio.test.kube.loadbalancer | bool | Used to obtain the right IP address for ingress gateway. This should be false for any environment that doesn't support a LoadBalancer type. |
+| --istio.test.kube.controlPlaneInstaller | string | External binary with path which lets custom control planes to be deployed or cleaned up at run time. |
 | --istio.test.revision | string | Overwrite the default namespace label (istio-enabled=true) with revision lable (istio.io/rev=XXX). (default is no overwrite). |
 | --istio.test.skip | []string | Skip tests matching the regular expression. This follows the semantics of -test.run. |
 | --istio.test.skipVM | bool | Skip all the VM related parts in all the tests. (default is "false"). |

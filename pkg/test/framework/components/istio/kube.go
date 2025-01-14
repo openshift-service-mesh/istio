@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sync"
@@ -871,6 +872,15 @@ func genCommonOperatorFiles(ctx resource.Context, cfg Config, workDir string) (i
 		if i.configIOP.spec, err = initIOPFile(cfg, i.configIOP.file, cfg.ConfigClusterValues); err != nil {
 			return iopFiles{}, err
 		}
+	}
+	//Execute external Control Plane Installer Script
+	if cfg.ControlPlaneInstaller != "" && !cfg.DeployIstio {
+		scopes.Framework.Infof("============= Execute Control Plane Installer =============")
+		cmd := exec.Command(cfg.ControlPlaneInstaller, workDir, "install")
+		if err := cmd.Run(); err != nil {
+			fmt.Println("Error: ", err)
+		}
+		i.configIOP = i.primaryIOP
 	} else {
 		i.configIOP = i.primaryIOP
 	}
