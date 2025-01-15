@@ -46,7 +46,7 @@ CLUSTER_TOPOLOGY_CONFIG_FILE="${ROOT}/prow/config/topology/multicluster.json"
 CLUSTER_NAME="${CLUSTER_NAME:-istio-testing}"
 
 export FAST_VM_BUILDS=true
-export ISTIO_DOCKER_BUILDER="${ISTIO_DOCKER_BUILDER:-crane}"
+export ISTIO_DOCKER_BUILDER="${ISTIO_DOCKER_BUILDER:-docker}"
 # DEVCONTAINER controls a set of features that allow this script to be run from
 # within a dev container using ghcr.io/devcontainers/features/docker-outside-of-docker
 export DEVCONTAINER="${DEVCONTAINER:-}"
