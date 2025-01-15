@@ -198,9 +198,10 @@ func TestConvertAuthorizationPolicyStatus(t *testing.T) {
 			},
 			expectStatusMessage: &model.StatusMessage{
 				Reason: "UnsupportedValue",
-				Message: "ztunnel does not support HTTP rules (methods, request.auth.presenter, requestPrincipals require HTTP parsing), in ambient" +
-					" mode you must use waypoint proxy to enforce HTTP rules. Allow rules with HTTP attributes will be empty and never match." +
-					" This is more restrictive than requested.",
+				Message: "ztunnel does not support HTTP attributes (found: methods, request.auth.presenter, requestPrincipals). " +
+					"In ambient mode you must use a waypoint proxy to enforce HTTP rules. " +
+					"Within an ALLOW policy, rules matching HTTP attributes are omitted. " +
+					"This will be more restrictive than requested.",
 			},
 		},
 	}
@@ -257,7 +258,7 @@ func TestWaypointPolicyStatusCollection(t *testing.T) {
 		}
 	})
 
-	wpsCollection := WaypointPolicyStatusCollection(authzPolCol, waypointCol, svcCol, seCol, nsCol)
+	wpsCollection := WaypointPolicyStatusCollection(authzPolCol, waypointCol, svcCol, seCol, nsCol, KrtOptions{})
 	c.RunAndWait(ctx.Done())
 
 	_, err := clientNs.Create(&v1.Namespace{
