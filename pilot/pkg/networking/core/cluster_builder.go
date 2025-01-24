@@ -218,7 +218,7 @@ func (cb *ClusterBuilder) buildSubsetCluster(
 		opts.isDrWithSelector = destinationRule.GetWorkloadSelector() != nil
 	}
 	// Apply traffic policy for the subset cluster.
-	cb.applyTrafficPolicy(opts)
+	cb.applyTrafficPolicy(service, opts)
 
 	maybeApplyEdsConfig(subsetCluster.cluster)
 
@@ -263,7 +263,7 @@ func (cb *ClusterBuilder) applyDestinationRule(mc *clusterWrapper, clusterMode C
 		opts.isDrWithSelector = destinationRule.GetWorkloadSelector() != nil
 	}
 	// Apply traffic policy for the main default cluster.
-	cb.applyTrafficPolicy(opts)
+	cb.applyTrafficPolicy(service, opts)
 
 	// Apply EdsConfig if needed. This should be called after traffic policy is applied because, traffic policy might change
 	// discovery type.
@@ -352,9 +352,9 @@ func (cb *ClusterBuilder) buildCluster(name string, discoveryType cluster.Cluste
 			}
 		}
 		// 0 disables jitter.
-		c.DnsJitter = durationpb.New(features.PilotDNSJitterDurationEnv)
-		c.DnsRefreshRate = cb.req.Push.Mesh.DnsRefreshRate
-		c.RespectDnsTtl = true
+		c.DnsJitter = durationpb.New(features.PilotDNSJitterDurationEnv) //nolint:staticcheck // DnsJitter is deprecated
+		c.DnsRefreshRate = cb.req.Push.Mesh.DnsRefreshRate               //nolint:staticcheck // DnsRefreshRate is deprecated
+		c.RespectDnsTtl = true                                           //nolint:staticcheck // RespectDnsTtl is deprecated
 		// we want to run all the STATIC parts as well to build the load assignment
 		fallthrough
 	case cluster.Cluster_STATIC:
@@ -465,7 +465,7 @@ func (cb *ClusterBuilder) buildInboundCluster(clusterPort int, bind string,
 		}
 		opts.policy.ConnectionPool = sidecarConnPool
 	}
-	cb.applyTrafficPolicy(opts)
+	cb.applyTrafficPolicy(nil, opts)
 
 	if bind != LocalhostAddress && bind != LocalhostIPv6Address {
 		// iptables will redirect our own traffic to localhost back to us if we do not use the "magic" upstream bind

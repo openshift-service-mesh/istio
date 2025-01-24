@@ -17,7 +17,8 @@ require (
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/cli v27.4.0+incompatible
-	github.com/envoyproxy/go-control-plane v0.13.2-0.20241125134052-fc612d4a3afa
+	github.com/envoyproxy/go-control-plane/contrib v1.32.4-0.20250122204407-d77bd2ea68bd
+	github.com/envoyproxy/go-control-plane/envoy v1.32.4-0.20250122204407-d77bd2ea68bd
 	github.com/evanphx/json-patch/v5 v5.9.0
 	github.com/fatih/color v1.18.0
 	github.com/felixge/fgprof v0.9.5
@@ -86,19 +87,19 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.4.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576
-	google.golang.org/grpc v1.69.0
-	google.golang.org/protobuf v1.36.0
+	google.golang.org/grpc v1.69.4
+	google.golang.org/protobuf v1.36.3
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.16.3
-	istio.io/api v1.24.0-alpha.0.0.20241218215532-27d505cbdb11
-	istio.io/client-go v1.24.0-alpha.0.0.20241217181500-0630716ab2c6
-	k8s.io/api v0.32.0
+	istio.io/api v1.25.0-alpha.0.0.20250122191259-d8ef56f50c37
+	istio.io/client-go v1.25.0-alpha.0.0.20250123233759-aa9f47ac1503
+	k8s.io/api v0.32.1
 	k8s.io/apiextensions-apiserver v0.32.0
-	k8s.io/apimachinery v0.32.0
+	k8s.io/apimachinery v0.32.1
 	k8s.io/apiserver v0.32.0
 	k8s.io/cli-runtime v0.32.0
-	k8s.io/client-go v0.32.0
+	k8s.io/client-go v0.32.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubectl v0.32.0
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
@@ -121,7 +122,6 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/chai2010/gettext-go v1.0.3 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
@@ -131,6 +131,7 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
+	github.com/envoyproxy/go-control-plane v0.13.5-0.20250123154839-2a6715911fec // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
