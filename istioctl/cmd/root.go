@@ -199,9 +199,8 @@ debug and diagnose their Istio mesh.
 	experimentalCmd.AddCommand(precheck.Cmd(ctx))
 	experimentalCmd.AddCommand(proxyconfig.StatsConfigCmd(ctx))
 	experimentalCmd.AddCommand(checkinject.Cmd(ctx))
-	// TODO: revisit once ambient mode is supported in Sail Operator.
-	rootCmd.AddCommand(unsupportedCmd(waypoint.Cmd(ctx), "none"))
-	rootCmd.AddCommand(unsupportedCmd(ztunnelconfig.ZtunnelConfig(ctx), "none"))
+	rootCmd.AddCommand(waypoint.Cmd(ctx))
+	rootCmd.AddCommand(ztunnelconfig.ZtunnelConfig(ctx))
 
 	analyzeCmd := analyze.Analyze(ctx)
 	hideInheritedFlags(analyzeCmd, cli.FlagIstioNamespace)
