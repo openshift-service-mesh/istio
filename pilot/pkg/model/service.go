@@ -148,6 +148,23 @@ func (s *Service) SupportsDrainingEndpoints() bool {
 		(features.PersistentSessionHeaderLabel != "" && s.Attributes.Labels[features.PersistentSessionHeaderLabel] != "")
 }
 
+// SupportsUnhealthyEndpoints marks if this service should send unhealthy endpoints
+func (s *Service) SupportsUnhealthyEndpoints() bool {
+	if features.GlobalSendUnhealthyEndpoints.Load() {
+		// Enable process-wide
+		return true
+	}
+	if s != nil && s.Attributes.TrafficDistribution != TrafficDistributionAny {
+		// When we are doing location aware routing, we need some way to indicate if endpoints are healthy, otherwise we don't
+		// know when to spill over to other zones.
+		// For the older DestinationRule localityLB, we do this by requiring outlier detection.
+		// If they use the newer Kubernetes-native TrafficDistribution we don't want to require an Istio-specific outlier rule,
+		// and instead will use endpoint health which requires sending unhealthy endpoints.
+		return true
+	}
+	return false
+}
+
 // Resolution indicates how the service instances need to be resolved before routing traffic.
 type Resolution int
 
@@ -554,6 +571,11 @@ type IstioEndpoint struct {
 	// Indicates the endpoint health status.
 	HealthStatus HealthStatus
 
+	// SendUnhealthyEndpoints indicates whether this endpoint should be sent when it is unhealthy
+	// Note: this is more appropriate at the Service level, but some codepaths require this in areas without the service
+	// object present.
+	SendUnhealthyEndpoints bool
+
 	// If in k8s, the node where the pod resides
 	NodeName string
 }
@@ -753,12 +775,25 @@ type K8sAttributes struct {
 	// spec.InternalTrafficPolicy == Local
 	NodeLocal bool
 
+	// TrafficDistribution determines the service-level traffic distribution.
+	// This may be overridden by locality load balancing settings.
+	TrafficDistribution TrafficDistribution
+
 	// ObjectName is the object name of the underlying object. This may differ from the Service.Attributes.Name for legacy semantics.
 	ObjectName string
 
 	// spec.PublishNotReadyAddresses
 	PublishNotReadyAddresses bool
 }
+
+type TrafficDistribution int
+
+const (
+	// TrafficDistributionAny allows any destination
+	TrafficDistributionAny TrafficDistribution = iota
+	// TrafficDistributionPreferClose prefers traffic in same region/zone/network if possible, with failover allowed.
+	TrafficDistributionPreferClose TrafficDistribution = iota
+)
 
 // DeepCopy creates a deep copy of ServiceAttributes, but skips internal mutexes.
 func (s *ServiceAttributes) DeepCopy() ServiceAttributes {
@@ -1583,6 +1618,27 @@ func (s *Service) GetExtraAddressesForProxy(node *Proxy) []string {
 	return nil
 }
 
+// HasAddressOrAssigned returns whether the service has an IP address.
+// This includes auto-allocated IP addresses. Note that not all proxies support auto-allocated IP addresses;
+// typically GetAllAddressesForProxy should be used which automatically filters addresses to account for that.
+func (s *Service) HasAddressOrAssigned(id cluster.ID) bool {
+	if id != "" {
+		if len(s.ClusterVIPs.GetAddressesFor(id)) > 0 {
+			return true
+		}
+	}
+	if s.DefaultAddress != constants.UnspecifiedIP {
+		return true
+	}
+	if s.AutoAllocatedIPv4Address != "" {
+		return true
+	}
+	if s.AutoAllocatedIPv6Address != "" {
+		return true
+	}
+	return false
+}
+
 // GetAllAddressesForProxy returns a k8s service's all addresses to the cluster where the node resides.
 // Especially for dual stack k8s service to get other IP family addresses.
 func (s *Service) GetAllAddressesForProxy(node *Proxy) []string {
@@ -1782,6 +1838,7 @@ func (ep *IstioEndpoint) Equals(other *IstioEndpoint) bool {
 		ep.HostName == other.HostName &&
 		ep.SubDomain == other.SubDomain &&
 		ep.HealthStatus == other.HealthStatus &&
+		ep.SendUnhealthyEndpoints == other.SendUnhealthyEndpoints &&
 		ep.NodeName == other.NodeName
 	if !eq {
 		return false

@@ -158,8 +158,8 @@ func (cb *ClusterBuilder) buildWaypointInboundVIPCluster(
 	// For these policies, we have the standard logic apply
 	cb.applyConnectionPool(mesh, localCluster, connectionPool)
 	cb.applyH2Upgrade(localCluster, &port, mesh, connectionPool)
-	applyOutlierDetection(localCluster.cluster, outlierDetection)
-	applyLoadBalancer(localCluster.cluster, loadBalancer, &port, cb.locality, cb.proxyLabels, mesh)
+	applyOutlierDetection(nil, localCluster.cluster, outlierDetection)
+	applyLoadBalancer(svc, localCluster.cluster, loadBalancer, &port, cb.locality, cb.proxyLabels, mesh)
 
 	// Setup EDS config after apply LoadBalancer, since it can impact the result
 	if localCluster.cluster.GetType() == cluster.Cluster_ORIGINAL_DST {
@@ -200,7 +200,7 @@ func (cb *ClusterBuilder) buildWaypointInboundVIPCluster(
 	// no TLS, we are just going to internal address
 	localCluster.cluster.TransportSocketMatches = nil
 	// Wrap the transportSocket with internal listener upstream. Note this could be a raw buffer, PROXY, TLS, etc
-	localCluster.cluster.TransportSocket = util.TunnelHostInternalUpstreamTransportSocket(transportSocket)
+	localCluster.cluster.TransportSocket = util.WaypointInternalUpstreamTransportSocket(transportSocket)
 
 	return localCluster.build()
 }
