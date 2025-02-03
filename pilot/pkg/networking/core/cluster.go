@@ -240,8 +240,9 @@ func (configgen *ConfigGeneratorImpl) buildClusters(proxy *model.Proxy, req *mod
 		_, wps := findWaypointResources(proxy, req.Push)
 		// Waypoint proxies do not need outbound clusters in most cases, unless we have a route pointing to something
 		outboundPatcher := clusterPatcher{efw: envoyFilterPatches, pctx: networking.EnvoyFilter_SIDECAR_OUTBOUND}
+		extraNamespacedHosts, extraHosts := req.Push.ExtraWaypointServices(proxy)
 		ob, cs := configgen.buildOutboundClusters(cb, proxy, outboundPatcher, filterWaypointOutboundServices(
-			req.Push.ServicesAttachedToMesh(), wps.services, req.Push.ExtraWaypointServices(proxy), services))
+			req.Push.ServicesAttachedToMesh(), wps.services, extraNamespacedHosts, extraHosts, services))
 		cacheStats = cacheStats.merge(cs)
 		resources = append(resources, ob...)
 		// Setup inbound clusters
@@ -270,10 +271,11 @@ func (configgen *ConfigGeneratorImpl) buildClusters(proxy *model.Proxy, req *mod
 	if proxy.Metadata != nil && proxy.Metadata.Raw[security.CredentialMetaDataName] == "true" {
 		clusters = append(clusters, cb.buildExternalSDSCluster(security.CredentialNameSocketPath))
 	}
+	// Dedupte the inbound clusters added by Envoy filters.
+	clusters = cb.normalizeClusters(clusters)
 	for _, c := range clusters {
 		resources = append(resources, &discovery.Resource{Name: c.Name, Resource: protoconv.MessageToAny(c)})
 	}
-	resources = cb.normalizeClusters(resources)
 
 	if cacheStats.empty() {
 		return resources, model.DefaultXdsLogDetails
