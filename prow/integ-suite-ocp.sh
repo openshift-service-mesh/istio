@@ -70,26 +70,30 @@ build_images() {
     fi
 }
 
-# Skip the setup if the flag is set
-if [ "${SKIP_SETUP}" == "false" ]; then
-    # Check if artifact dir exist and if not create it in the current directory
-    ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
-    mkdir -p "${ARTIFACTS_DIR}/junit"
-    JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
+# Define the artifacts directory
+ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
+JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
 
-    # Setup the internal registry for ocp cluster
-    setup_internal_registry
-    
-    # Build and push the images to the internal registry
-    build_images
-else 
-    echo "Skipping the setup"
-fi
-
-# Install the MetalLB if the flag is set
+# Install MetalLB if the flag is set
 if [ "${INSTALL_METALLB}" == "true" ]; then
     echo "Installing MetalLB"
     deployMetalLB
+
+# Run the setup only if MetalLB is not being installed and setup is not skipped
+elif [ "${INSTALL_METALLB}" != "true" ] && [ "${SKIP_SETUP}" != "true" ]; then
+    echo "Running full setup..."
+
+    # Ensure artifacts directory exists
+    mkdir -p "${JUNIT_REPORT_DIR}"
+
+    # Setup the internal registry for the OCP cluster
+    setup_internal_registry
+
+    # Build and push the images to the internal registry
+    build_images
+
+else
+    echo "Skipping the setup"
 fi
 
 # Check if the test run should be skipped
