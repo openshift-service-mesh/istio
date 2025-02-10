@@ -27,14 +27,15 @@ export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export TAG="${TAG:-"istio-testing"}"
 SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
+SKIP_SETUP="${SKIP_SETUP:-"false"}"
+INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
+# Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
+# To execute the tests in downstream, set SKIP_TEST_RUN to true
+# Jira: https://issues.redhat.com/browse/OSSM-8029
+SKIP_TEST_RUN="${SKIP_TEST_RUN:-"false"}"
 # TEST_OUTPUT_FORMAT set the output format for the test result. Currently only supports: not set and junit
 # If you are executing locally you will need to install before the go-junit-report package
 TEST_OUTPUT_FORMAT="${TEST_OUTPUT_FORMAT:-"junit"}"
-
-# Check if artifact dir exist and if not create it in the current directory
-ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
-mkdir -p "${ARTIFACTS_DIR}/junit"
-JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
 
 # Exit immediately for non zero status
 set -e
@@ -69,11 +70,35 @@ build_images() {
     fi
 }
 
-# Setup the internal registry for ocp cluster
-setup_internal_registry
+# Skip the setup if the flag is set
+if [ "${SKIP_SETUP}" == "false" ]; then
+    # Check if artifact dir exist and if not create it in the current directory
+    ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
+    mkdir -p "${ARTIFACTS_DIR}/junit"
+    JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
 
-# Build and push the images to the internal registry
-build_images
+    # Setup the internal registry for ocp cluster
+    setup_internal_registry
+    
+    # Build and push the images to the internal registry
+    build_images
+else 
+    echo "Skipping the setup"
+fi
+
+# Install the MetalLB if the flag is set
+if [ "${INSTALL_METALLB}" == "true" ]; then
+    echo "Installing MetalLB"
+    deployMetalLB
+fi
+
+# Check if the test run should be skipped
+# This is a workaround until downstream tests can be executed by using this script.
+# Jira: https://issues.redhat.com/browse/OSSM-8029
+if [ "${SKIP_TEST_RUN}" == "true" ]; then
+    echo "Skipping the test run"
+    exit 0
+fi
 
 # Run the integration tests
 echo "Running integration tests"
