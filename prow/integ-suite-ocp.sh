@@ -151,4 +151,4 @@ else
 fi
 
 # Exit with the status of the test command
-exit $test_status
+exit "$test_status"
