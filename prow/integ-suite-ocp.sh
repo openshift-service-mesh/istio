@@ -135,6 +135,13 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.tag=${TAG}"
           "--istio.test.openshift")
 
+# Append sail operator setup script to base command
+if [ "${OPERATOR_TYPE:-}" == "sail" ]; then
+    SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
+    base_cmd+=("--istio.test.kube.deploy=false")
+    base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
+fi
+
 # Append skip tests flag if SKIP_TESTS is set
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
