@@ -29,6 +29,7 @@ SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
 SKIP_SETUP="${SKIP_SETUP:-"false"}"
 INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
+CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
 # Jira: https://issues.redhat.com/browse/OSSM-8029
@@ -136,7 +137,7 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.openshift")
 
 # Append sail operator setup script to base command
-if [ "${OPERATOR_TYPE:-}" == "sail" ]; then
+if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
     SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
     base_cmd+=("--istio.test.kube.deploy=false")
     base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
