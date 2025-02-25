@@ -60,8 +60,8 @@ WORKDIR="$2"
 IOP_FILE="$2"/iop.yaml
 SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
 
-ISTIO_VERSION="${ISTIO_VERSION:-latest}"
-INGRESS_GATEWAY_SVC_NAMESPACE="${INGRESS_GATEWAY_SVC_NAMESPACE:-istio-system}"
+ISTIO_VERSION="${ISTIO_VERSION:-v1.24.1}"
+NAMESPACE="${NAMESPACE:-istio-system}"
 ISTIOCNI_NAMESPACE="${ISTIOCNI_NAMESPACE:-istio-cni}"
 
 ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
@@ -75,7 +75,7 @@ function download_execute_converter(){
   cd "${PROW}"
   curl -fsSL "$CONVERTER_ADDRESS" -o "$CONVERTER_SCRIPT" || { echo "Failed to download converter script"; exit 1; }
   chmod +x "$CONVERTER_SCRIPT"
-  bash "$CONVERTER_SCRIPT" "$IOP_FILE" -v "$ISTIO_VERSION" -n "$INGRESS_GATEWAY_SVC_NAMESPACE" || { echo "Failed to execute converter script"; exit 1; }
+  bash "$CONVERTER_SCRIPT" "$IOP_FILE" -v "$ISTIO_VERSION" -n "$NAMESPACE" || { echo "Failed to execute converter script"; exit 1; }
   rm "$CONVERTER_SCRIPT"
 }
 
@@ -95,18 +95,17 @@ function install_istiod(){
     yq -i eval ".apiVersion = \"sailoperator.io/$SAIL_API_VERSION\"" "$WORKDIR/$SAIL_IOP_FILE"
   fi
   oc apply -f "$WORKDIR/$SAIL_IOP_FILE"
-  oc wait --for=condition=Available=True deployment/istiod --timeout=30s
   echo "istiod created."
 }
 
 # Install ingress and egress gateways
 function install_gateways(){
-  helm template -n "$INGRESS_GATEWAY_SVC_NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
+  helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
-  helm template -n "$INGRESS_GATEWAY_SVC_NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+  helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
-  oc wait --for=condition=Available=True deployment/istio-ingressgateway --timeout=30s
-  oc wait --for=condition=Available=True deployment/istio-egressgateway --timeout=30s
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=30s
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=30s
   echo "Gateways created."
 
 }
@@ -114,8 +113,8 @@ function install_gateways(){
 function cleanup_istio(){
   oc delete istio/default
   oc delete istioCNI/default
-  oc delete all --selector app=istio-egressgateway -n "$INGRESS_GATEWAY_SVC_NAMESPACE"
-  oc delete all --selector app=istio-ingressgateway -n "$INGRESS_GATEWAY_SVC_NAMESPACE"
+  oc delete all --selector app=istio-egressgateway -n "$NAMESPACE"
+  oc delete all --selector app=istio-ingressgateway -n "$NAMESPACE"
   echo "Cleanup completed."
 }
 
