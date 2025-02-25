@@ -29,7 +29,10 @@ SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
 SKIP_SETUP="${SKIP_SETUP:-"false"}"
 INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
+OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
 CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
+INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"true"}"
+
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
 # Jira: https://issues.redhat.com/browse/OSSM-8029
@@ -95,6 +98,11 @@ elif [ "${INSTALL_METALLB}" != "true" ] && [ "${SKIP_SETUP}" != "true" ]; then
 
 else
     echo "Skipping the setup"
+fi
+
+# Install Sail Operator
+if [ "${INSTALL_SAIL_OPERATOR}" == "true" ]; then
+    deploy_operator
 fi
 
 # Check if the test run should be skipped

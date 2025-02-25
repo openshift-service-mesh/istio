@@ -20,7 +20,10 @@
 # The output log of this script is printed under working directory set by: --istio.test.work_dir/sail-operator-setup.log
 # Upstream WoW to call this script is documented in here: https://github.com/openshift-service-mesh/istio/tree/master/tests/integration#running-tests-on-custom-deployment
 
-exec > >(tee -a "$2"/sail-operator-setup.log) 2>&1
+LOG_FILE="$2/sail-operator-setup.log"
+# Redirect stdout and stderr to the log file
+exec > >(awk '{print strftime("[%Y-%m-%d %H:%M:%S]"), $0}' | tee -a "$LOG_FILE") 2>&1
+
 # Exit immediately for non zero status
 set -e
 # Check unset variables
@@ -29,6 +32,7 @@ set -u
 set -x
 # fail if any command in the pipeline fails
 set -o pipefail
+
 
 function usage() {
     echo "Usage: $0 <install|cleanup> <input_yaml>"
@@ -60,8 +64,8 @@ WORKDIR="$2"
 IOP_FILE="$2"/iop.yaml
 SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
 
-ISTIO_VERSION="${ISTIO_VERSION:-latest}"
-INGRESS_GATEWAY_SVC_NAMESPACE="${INGRESS_GATEWAY_SVC_NAMESPACE:-istio-system}"
+ISTIO_VERSION="${ISTIO_VERSION:-v1.24-latest}"
+NAMESPACE="${NAMESPACE:-istio-system}"
 ISTIOCNI_NAMESPACE="${ISTIOCNI_NAMESPACE:-istio-cni}"
 
 ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
@@ -75,7 +79,7 @@ function download_execute_converter(){
   cd "${PROW}"
   curl -fsSL "$CONVERTER_ADDRESS" -o "$CONVERTER_SCRIPT" || { echo "Failed to download converter script"; exit 1; }
   chmod +x "$CONVERTER_SCRIPT"
-  bash "$CONVERTER_SCRIPT" "$IOP_FILE" -v "$ISTIO_VERSION" -n "$INGRESS_GATEWAY_SVC_NAMESPACE" || { echo "Failed to execute converter script"; exit 1; }
+  bash "$CONVERTER_SCRIPT" "$IOP_FILE" -v "$ISTIO_VERSION" -n "$NAMESPACE" || { echo "Failed to execute converter script"; exit 1; }
   rm "$CONVERTER_SCRIPT"
 }
 
@@ -91,31 +95,35 @@ function install_istio_cni(){
 
 function install_istiod(){
   # overwrite sailoperator version before applying it
+  oc create namespace "${NAMESPACE}" || true
   if [ "${SAIL_API_VERSION:-}" != "" ]; then
     yq -i eval ".apiVersion = \"sailoperator.io/$SAIL_API_VERSION\"" "$WORKDIR/$SAIL_IOP_FILE"
   fi
-  oc apply -f "$WORKDIR/$SAIL_IOP_FILE"
-  oc wait --for=condition=Available=True deployment/istiod --timeout=30s
+  oc apply -f "$WORKDIR/$SAIL_IOP_FILE" || { echo "Failed to install istiod"; kubectl get istio default -o yaml;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istiod --timeout=240s || { sleep 60; }
   echo "istiod created."
 }
 
 # Install ingress and egress gateways
 function install_gateways(){
-  helm template -n "$INGRESS_GATEWAY_SVC_NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
+  helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
-  helm template -n "$INGRESS_GATEWAY_SVC_NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+  helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
-  oc wait --for=condition=Available=True deployment/istio-ingressgateway --timeout=30s
-  oc wait --for=condition=Available=True deployment/istio-egressgateway --timeout=30s
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1) -n istio-system;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide;}
   echo "Gateways created."
 
 }
 
 function cleanup_istio(){
-  oc delete istio/default
-  oc delete istioCNI/default
-  oc delete all --selector app=istio-egressgateway -n "$INGRESS_GATEWAY_SVC_NAMESPACE"
-  oc delete all --selector app=istio-ingressgateway -n "$INGRESS_GATEWAY_SVC_NAMESPACE"
+  kubectl delete all --all -n $ISTIOCNI_NAMESPACE
+  kubectl delete all --all -n $NAMESPACE
+  kubectl delete istios.sailoperator.io --all --all-namespaces --wait=true
+  kubectl get clusterrole | grep istio | awk '{print $1}' | xargs kubectl delete clusterrole
+  kubectl get clusterrolebinding | grep istio | awk '{print $1}' | xargs kubectl delete clusterrolebinding
+  oc delete ns $ISTIOCNI_NAMESPACE
+  oc delete ns $NAMESPACE
   echo "Cleanup completed."
 }
 
