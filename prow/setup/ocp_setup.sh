@@ -178,3 +178,10 @@ spec:
 
   echo "MetalLB has been deployed and configured with the IP address pool."
 }
+
+function install_operator(){
+  oc create namespace "sail-operator" || true
+  helm repo add sail-operator https://istio-ecosystem.github.io/sail-operator
+  helm repo update
+  helm install sail-operator sail-operator/sail-operator --namespace sail-operator
+}
