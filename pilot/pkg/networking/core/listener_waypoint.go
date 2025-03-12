@@ -17,7 +17,6 @@ package core
 import (
 	"fmt"
 	"net/netip"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -33,9 +32,7 @@ import (
 	tcp "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/tcp_proxy/v3"
 	celformatter "github.com/envoyproxy/go-control-plane/envoy/extensions/formatter/cel/v3"
 	tls "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
-	envoymatcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	googleproto "google.golang.org/protobuf/proto"
-	any "google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -47,7 +44,7 @@ import (
 	"istio.io/istio/pilot/pkg/networking/core/extension"
 	"istio.io/istio/pilot/pkg/networking/core/match"
 	istio_route "istio.io/istio/pilot/pkg/networking/core/route"
-	"istio.io/istio/pilot/pkg/networking/core/route/retry"
+	"istio.io/istio/pilot/pkg/networking/core/tunnelingconfig"
 	"istio.io/istio/pilot/pkg/networking/plugin/authn"
 	"istio.io/istio/pilot/pkg/networking/plugin/authz"
 	"istio.io/istio/pilot/pkg/networking/telemetry"
@@ -56,6 +53,7 @@ import (
 	"istio.io/istio/pilot/pkg/util/protoconv"
 	xdsfilters "istio.io/istio/pilot/pkg/xds/filters"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/proto"
@@ -300,27 +298,18 @@ func (lb *ListenerBuilder) buildWaypointInternal(wls []model.WorkloadInfo, svcs 
 			var tcpChain, httpChain *listener.FilterChain
 			origDst := svc.GetAddressForProxy(lb.node) + ":" + portString
 			httpClusterName := model.BuildSubsetKey(model.TrafficDirectionInboundVIP, "http", svc.Hostname, port.Port)
+			var filters []*listener.Filter
 			if len(svcAddresses) > 0 && features.EnableAmbientMultiNetwork {
-				setOrigDstForCluster := []*listener.Filter{getOrigDstSfs(origDst, false)}
-				tcpChain = &listener.FilterChain{
-					Filters: append(setOrigDstForCluster, lb.buildInboundNetworkFilters(cc)...),
-					Name:    cc.clusterName,
-				}
-				cc.clusterName = httpClusterName
-				httpChain = &listener.FilterChain{
-					Filters: append(setOrigDstForCluster, lb.buildWaypointInboundHTTPFilters(svc, cc)...),
-					Name:    cc.clusterName,
-				}
-			} else {
-				tcpChain = &listener.FilterChain{
-					Filters: lb.buildInboundNetworkFilters(cc),
-					Name:    cc.clusterName,
-				}
-				cc.clusterName = httpClusterName
-				httpChain = &listener.FilterChain{
-					Filters: lb.buildWaypointInboundHTTPFilters(svc, cc),
-					Name:    cc.clusterName,
-				}
+				filters = []*listener.Filter{getOrigDstSfs(origDst, false)}
+			}
+			tcpChain = &listener.FilterChain{
+				Filters: append(slices.Clone(filters), lb.buildWaypointNetworkFilters(svc, cc)...),
+				Name:    cc.clusterName,
+			}
+			cc.clusterName = httpClusterName
+			httpChain = &listener.FilterChain{
+				Filters: append(slices.Clone(filters), lb.buildWaypointInboundHTTPFilters(svc, cc)...),
+				Name:    cc.clusterName,
 			}
 			if port.Protocol.IsUnsupported() {
 				// If we need to sniff, insert two chains and the protocol detector
@@ -393,7 +382,7 @@ func (lb *ListenerBuilder) buildWaypointInternal(wls []model.WorkloadInfo, svcs 
 			Filters: append([]*listener.Filter{
 				xdsfilters.ConnectAuthorityNetworkFilter,
 			},
-				lb.buildInboundNetworkFilters(cc)...),
+				lb.buildWaypointNetworkFilters(nil, cc)...),
 			Name: "direct-tcp",
 		}
 		// TODO: maintains undesirable persistent HTTP connections to "encap"
@@ -640,13 +629,150 @@ func (lb *ListenerBuilder) buildWaypointInboundHTTPFilters(svc *model.Service, c
 	return filters
 }
 
+// buildInboundNetworkFilters generates a TCP proxy network filter on the inbound path
+func (lb *ListenerBuilder) buildWaypointNetworkFilters(svc *model.Service, fcc inboundChainConfig) []*listener.Filter {
+	var svcHostname host.Name
+	var subsetName string
+
+	statPrefix := fcc.clusterName
+	// If stat name is configured, build the stat prefix from configured pattern.
+	if len(lb.push.Mesh.InboundClusterStatName) != 0 {
+		statPrefix = telemetry.BuildInboundStatPrefix(lb.push.Mesh.InboundClusterStatName, fcc.telemetryMetadata, "", uint32(fcc.port.Port), fcc.port.Name)
+	}
+	tcpProxy := &tcp.TcpProxy{
+		StatPrefix:       statPrefix,
+		ClusterSpecifier: &tcp.TcpProxy_Cluster{Cluster: fcc.clusterName},
+	}
+	var destinationRule *networking.DestinationRule
+	if svc != nil {
+		svcHostname = svc.Hostname
+		virtualServices := getVirtualServiceForWaypoint(lb.node.ConfigNamespace, svc, lb.node.SidecarScope.EgressListeners[0].VirtualServices())
+		routes := getWaypointTCPRoutes(virtualServices, svcHostname.String(), fcc.port.Port)
+		if len(routes) > 0 {
+			// Existing (slightly incorrect, but best we can do) semantics.
+			// We are routing to multiple destinations, but want TCPProxy level configuration which is shared.
+			// We have to just pick one to use as the settings.
+			svcHostname = host.Name(routes[0].Destination.Host)
+		}
+		if len(routes) == 1 {
+			// Similar to above, we have to pick one subset. Not sure why this logic is different but this aligns with sidecars.
+			subsetName = routes[0].Destination.Subset
+		}
+		destinationRule = CastDestinationRule(lb.node.SidecarScope.DestinationRule(model.TrafficDirectionOutbound, lb.node, svcHostname).GetRule())
+
+		if len(routes) == 1 {
+			route := routes[0]
+			service := lb.push.ServiceForHostname(lb.node, host.Name(route.Destination.Host))
+			clusterName := lb.getWaypointDestinationCluster(route.Destination, service, fcc.port.Port)
+			tcpProxy.ClusterSpecifier = &tcp.TcpProxy_Cluster{Cluster: clusterName}
+		} else if len(routes) > 1 {
+			clusterSpecifier := &tcp.TcpProxy_WeightedClusters{
+				WeightedClusters: &tcp.TcpProxy_WeightedCluster{},
+			}
+			for _, route := range routes {
+				service := lb.push.ServiceForHostname(lb.node, host.Name(route.Destination.Host))
+				if route.Weight > 0 {
+					clusterName := lb.getWaypointDestinationCluster(route.Destination, service, fcc.port.Port)
+					clusterSpecifier.WeightedClusters.Clusters = append(clusterSpecifier.WeightedClusters.Clusters, &tcp.TcpProxy_WeightedCluster_ClusterWeight{
+						Name:   clusterName,
+						Weight: uint32(route.Weight),
+					})
+				}
+			}
+			tcpProxy.ClusterSpecifier = clusterSpecifier
+		}
+	}
+
+	// To align with sidecars, subsets are ignored here...?
+	conPool := destinationRule.GetTrafficPolicy().GetConnectionPool().GetTcp()
+	tcpProxy.IdleTimeout = conPool.GetIdleTimeout()
+	if tcpProxy.IdleTimeout == nil {
+		tcpProxy.IdleTimeout = parseDuration(lb.node.Metadata.IdleTimeout)
+	}
+	tcpProxy.MaxDownstreamConnectionDuration = conPool.GetMaxConnectionDuration()
+
+	maybeSetHashPolicy(destinationRule, tcpProxy, subsetName)
+	tunnelingconfig.Apply(tcpProxy, destinationRule, subsetName)
+
+	tcpFilter := setAccessLogAndBuildTCPFilter(lb.push, lb.node, tcpProxy, istionetworking.ListenerClassSidecarInbound, fcc.policyService)
+	networkFilterstack := buildNetworkFiltersStack(fcc.port.Protocol, tcpFilter, statPrefix, fcc.clusterName)
+	return lb.buildCompleteNetworkFilters(istionetworking.ListenerClassSidecarInbound, fcc.port.Port, networkFilterstack, true, fcc.policyService)
+}
+
+var meshGateways = sets.New(constants.IstioMeshGateway)
+
+func getWaypointTCPRoutes(configs []config.Config, svcHostname string, port int) []*networking.RouteDestination {
+	for _, vs := range configs {
+		// Per https://gateway-api.sigs.k8s.io/geps/gep-1294/?h=xroute#route-types, respect TLS routes before TCP routes
+		if match := getTLSRouteMatch(vs.Spec.(*networking.VirtualService).GetTls(), svcHostname, port); match != nil {
+			return match
+		}
+	}
+	for _, vs := range configs {
+		if match := getTCPRouteMatch(vs.Spec.(*networking.VirtualService).GetTcp(), port); match != nil {
+			return match
+		}
+	}
+	return nil
+}
+
+func getTLSRouteMatch(tls []*networking.TLSRoute, svcHostname string, port int) []*networking.RouteDestination {
+	for _, rule := range tls {
+		if len(rule.Match) == 0 {
+			return rule.Route
+		}
+		for _, m := range rule.Match {
+			// Waypoint does not currently support SNI matches. This could be done, but would require more extensive refactoring
+			// of filter chains. Given TLSRoute does not support a config *not* matching this check (though VirtualService does)
+			// there is still some value in respecting the routes
+			if len(m.SniHosts) != 1 || m.SniHosts[0] != svcHostname {
+				continue
+			}
+			if matchTLS(
+				m,
+				nil, // No source labels support
+				meshGateways,
+				port,
+				"", // No source namespace support
+			) {
+				return rule.Route
+			}
+		}
+	}
+	return nil
+}
+
+func getTCPRouteMatch(tcp []*networking.TCPRoute, port int) []*networking.RouteDestination {
+	for _, rule := range tcp {
+		if len(rule.Match) == 0 {
+			return rule.Route
+		}
+		for _, m := range rule.Match {
+			if matchTCP(
+				m,
+				nil, // No source labels support
+				meshGateways,
+				port,
+				"", // No source namespace support
+			) {
+				return rule.Route
+			}
+		}
+	}
+	return nil
+}
+
 func buildWaypointInboundHTTPRouteConfig(lb *ListenerBuilder, svc *model.Service, cc inboundChainConfig) *route.RouteConfiguration {
 	// TODO: Policy binding via VIP+Host is inapplicable for direct pod access.
 	if svc == nil {
 		return buildSidecarInboundHTTPRouteConfig(lb, cc)
 	}
 
-	vs := getVirtualServiceForWaypoint(lb.node.ConfigNamespace, svc, lb.node.SidecarScope.EgressListeners[0].VirtualServices())
+	virtualServices := getVirtualServiceForWaypoint(lb.node.ConfigNamespace, svc, lb.node.SidecarScope.EgressListeners[0].VirtualServices())
+	vs := slices.FindFunc(virtualServices, func(c config.Config) bool {
+		// Find the first HTTP virtual service
+		return c.Spec.(*networking.VirtualService).Http != nil
+	})
 	if vs == nil {
 		return buildSidecarInboundHTTPRouteConfig(lb, cc)
 	}
@@ -673,20 +799,23 @@ func buildWaypointInboundHTTPRouteConfig(lb *ListenerBuilder, svc *model.Service
 }
 
 // Select the config pertaining to the service being processed.
-func getVirtualServiceForWaypoint(configNamespace string, svc *model.Service, configs []config.Config) *config.Config {
+func getVirtualServiceForWaypoint(configNamespace string, svc *model.Service, configs []config.Config) []config.Config {
+	var matching []config.Config
 	for _, cfg := range configs {
 		if cfg.Namespace != configNamespace && cfg.Namespace != svc.Attributes.Namespace {
 			// We only allow routes in the same namespace as the service or in the waypoint's own namespace
 			continue
 		}
 		virtualService := cfg.Spec.(*networking.VirtualService)
+
 		for _, vsHost := range virtualService.Hosts {
 			if host.Name(vsHost).Matches(svc.Hostname) {
-				return &cfg
+				matching = append(matching, cfg)
+				break
 			}
 		}
 	}
-	return nil
+	return matching
 }
 
 func (lb *ListenerBuilder) waypointInboundRoute(virtualService config.Config, listenPort int) ([]*route.Route, error) {
@@ -735,204 +864,34 @@ func (lb *ListenerBuilder) waypointInboundRoute(virtualService config.Config, li
 	return out, nil
 }
 
+var meshGateway = sets.New("mesh")
+
 func (lb *ListenerBuilder) translateWaypointRoute(
 	virtualService config.Config,
 	in *networking.HTTPRoute,
 	match *networking.HTTPMatchRequest,
 	listenPort int,
 ) *route.Route {
-	gatewaySemantics := model.UseGatewaySemantics(virtualService)
-	// When building routes, it's okay if the target cluster cannot be
-	// resolved. Traffic to such clusters will blackhole.
-
-	// Match by the destination port specified in the match condition
-	if match != nil && match.Port != 0 && match.Port != uint32(listenPort) {
-		return nil
+	opts := istio_route.RouteOptions{
+		IsTLS:                     false,
+		IsHTTP3AltSvcHeaderNeeded: false,
+		Mesh:                      lb.push.Mesh,
+		LookupService:             lb.serviceForHostname,
+		LookupDestinationCluster:  lb.getWaypointDestinationCluster,
+		LookupHash: func(destination *networking.HTTPRouteDestination) *networking.LoadBalancerSettings_ConsistentHashLB {
+			lb, _ := istio_route.HashForHTTPDestination(lb.push, lb.node, destination)
+			return lb
+		},
 	}
-
-	routeName := in.Name
-	if match != nil && match.Name != "" {
-		routeName = routeName + "." + match.Name
-	}
-
-	out := &route.Route{
-		Name:     routeName,
-		Match:    istio_route.TranslateRouteMatch(virtualService, match),
-		Metadata: util.BuildConfigInfoMetadata(virtualService.Meta),
-	}
-	authority := ""
-	if in.Headers != nil {
-		operations := istio_route.TranslateHeadersOperations(in.Headers)
-		out.RequestHeadersToAdd = operations.RequestHeadersToAdd
-		out.ResponseHeadersToAdd = operations.ResponseHeadersToAdd
-		out.RequestHeadersToRemove = operations.RequestHeadersToRemove
-		out.ResponseHeadersToRemove = operations.ResponseHeadersToRemove
-		authority = operations.Authority
-	}
-
-	if in.Redirect != nil {
-		istio_route.ApplyRedirect(out, in.Redirect, listenPort, false, model.UseGatewaySemantics(virtualService))
-	} else if in.DirectResponse != nil {
-		istio_route.ApplyDirectResponse(out, in.DirectResponse)
-	} else {
-		lb.waypointRouteDestination(out, in, authority, listenPort, gatewaySemantics)
-	}
-
-	out.Decorator = &route.Decorator{
-		Operation: istio_route.GetRouteOperation(out, virtualService.Name, listenPort),
-	}
-	if in.Fault != nil || in.CorsPolicy != nil {
-		out.TypedPerFilterConfig = make(map[string]*any.Any)
-	}
-	if in.Fault != nil {
-		out.TypedPerFilterConfig[wellknown.Fault] = protoconv.MessageToAny(istio_route.TranslateFault(in.Fault))
-	}
-	if in.CorsPolicy != nil {
-		out.TypedPerFilterConfig[wellknown.CORS] = protoconv.MessageToAny(istio_route.TranslateCORSPolicy(lb.node, in.CorsPolicy))
-	}
-
-	return out
-}
-
-func (lb *ListenerBuilder) waypointRouteDestination(
-	out *route.Route,
-	in *networking.HTTPRoute,
-	authority string,
-	listenerPort int,
-	gatewaySemantics bool,
-) {
-	policy := in.Retries
-	if policy == nil {
-		// No VS policy set, use mesh defaults
-		policy = lb.push.Mesh.GetDefaultHttpRetryPolicy()
-	}
-	action := &route.RouteAction{
-		RetryPolicy: retry.ConvertPolicy(policy, false),
-	}
-
-	// Configure timeouts specified by Virtual Service if they are provided, otherwise set it to defaults.
-	action.Timeout = istio_route.Notimeout
-	if in.Timeout != nil {
-		action.Timeout = in.Timeout
-	}
-	// Use deprecated value for now as the replacement MaxStreamDuration has some regressions.
-	// TODO: check and see if the replacement has been fixed.
-	// nolint: staticcheck
-	action.MaxGrpcTimeout = action.Timeout
-
-	if gatewaySemantics {
-		// return 500 for invalid backends
-		// https://github.com/kubernetes-sigs/gateway-api/blob/cea484e38e078a2c1997d8c7a62f410a1540f519/apis/v1beta1/httproute_types.go#L204
-		action.ClusterNotFoundResponseCode = route.RouteAction_INTERNAL_SERVER_ERROR
-	}
-	out.Action = &route.Route_Route{Route: action}
-
-	if in.Rewrite != nil {
-		if regexRewrite := in.Rewrite.GetUriRegexRewrite(); regexRewrite != nil {
-			action.RegexRewrite = &envoymatcher.RegexMatchAndSubstitute{
-				Pattern: &envoymatcher.RegexMatcher{
-					Regex: regexRewrite.Match,
-				},
-				Substitution: regexRewrite.Rewrite,
-			}
-		} else if uri := in.Rewrite.GetUri(); uri != "" {
-			if gatewaySemantics && uri == "/" {
-				// remove the prefix
-				action.RegexRewrite = &envoymatcher.RegexMatchAndSubstitute{
-					Pattern: &envoymatcher.RegexMatcher{
-						Regex: fmt.Sprintf(`^%s(/?)(.*)`, regexp.QuoteMeta(out.Match.GetPathSeparatedPrefix())),
-					},
-					// hold `/` in case the entire path is removed
-					Substitution: `/\2`,
-				}
-			} else {
-				action.PrefixRewrite = uri
-			}
-		}
-		if in.Rewrite.GetAuthority() != "" {
-			authority = in.Rewrite.GetAuthority()
-		}
-	}
-	if authority != "" {
-		action.HostRewriteSpecifier = &route.RouteAction_HostRewriteLiteral{
-			HostRewriteLiteral: authority,
-		}
-	}
-
-	if in.Mirror != nil {
-		if mp := istio_route.MirrorPercent(in); mp != nil {
-			cluster := lb.getWaypointDestinationCluster(in.Mirror, lb.serviceForHostname(host.Name(in.Mirror.Host)), listenerPort)
-			action.RequestMirrorPolicies = append(action.RequestMirrorPolicies,
-				istio_route.TranslateRequestMirrorPolicyCluster(cluster, mp))
-		}
-	}
-	for _, mirror := range in.Mirrors {
-		if mp := istio_route.MirrorPercentByPolicy(mirror); mp != nil && mirror.Destination != nil {
-			cluster := lb.getWaypointDestinationCluster(mirror.Destination, lb.serviceForHostname(host.Name(mirror.Destination.Host)), listenerPort)
-			action.RequestMirrorPolicies = append(action.RequestMirrorPolicies,
-				istio_route.TranslateRequestMirrorPolicyCluster(cluster, mp))
-		}
-	}
-
-	// TODO: eliminate this logic and use the total_weight option in envoy route
-	weighted := make([]*route.WeightedCluster_ClusterWeight, 0)
-	for _, dst := range in.Route {
-		weight := &wrappers.UInt32Value{Value: uint32(dst.Weight)}
-		if dst.Weight == 0 {
-			// Ignore 0 weighted clusters if there are other clusters in the route.
-			// But if this is the only cluster in the route, then add it as a cluster with weight 100
-			if len(in.Route) == 1 {
-				weight.Value = uint32(100)
-			} else {
-				continue
-			}
-		}
-		hostname := host.Name(dst.GetDestination().GetHost())
-		n := lb.getWaypointDestinationCluster(dst.Destination, lb.serviceForHostname(hostname), listenerPort)
-		clusterWeight := &route.WeightedCluster_ClusterWeight{
-			Name:   n,
-			Weight: weight,
-		}
-		if dst.Headers != nil {
-			operations := istio_route.TranslateHeadersOperations(dst.Headers)
-			clusterWeight.RequestHeadersToAdd = operations.RequestHeadersToAdd
-			clusterWeight.RequestHeadersToRemove = operations.RequestHeadersToRemove
-			clusterWeight.ResponseHeadersToAdd = operations.ResponseHeadersToAdd
-			clusterWeight.ResponseHeadersToRemove = operations.ResponseHeadersToRemove
-			if operations.Authority != "" {
-				clusterWeight.HostRewriteSpecifier = &route.WeightedCluster_ClusterWeight_HostRewriteLiteral{
-					HostRewriteLiteral: operations.Authority,
-				}
-			}
-		}
-
-		weighted = append(weighted, clusterWeight)
-	}
-
-	// rewrite to a single cluster if there is only weighted cluster
-	if len(weighted) == 1 {
-		action.ClusterSpecifier = &route.RouteAction_Cluster{Cluster: weighted[0].Name}
-		out.RequestHeadersToAdd = append(out.RequestHeadersToAdd, weighted[0].RequestHeadersToAdd...)
-		out.RequestHeadersToRemove = append(out.RequestHeadersToRemove, weighted[0].RequestHeadersToRemove...)
-		out.ResponseHeadersToAdd = append(out.ResponseHeadersToAdd, weighted[0].ResponseHeadersToAdd...)
-		out.ResponseHeadersToRemove = append(out.ResponseHeadersToRemove, weighted[0].ResponseHeadersToRemove...)
-		if weighted[0].HostRewriteSpecifier != nil && action.HostRewriteSpecifier == nil {
-			// Ideally, if the weighted cluster overwrites authority, it has precedence. This mirrors behavior of headers,
-			// because for headers we append the weighted last which allows it to Set and wipe out previous Adds.
-			// However, Envoy behavior is different when we set at both cluster level and route level, and we want
-			// behavior to be consistent with a single cluster and multiple clusters.
-			// As a result, we only override if the top level rewrite is not set
-			action.HostRewriteSpecifier = &route.RouteAction_HostRewriteLiteral{
-				HostRewriteLiteral: weighted[0].GetHostRewriteLiteral(),
-			}
-		}
-	} else {
-		action.ClusterSpecifier = &route.RouteAction_WeightedClusters{
-			WeightedClusters: &route.WeightedCluster{
-				Clusters: weighted,
-			},
-		}
-	}
+	return istio_route.TranslateRoute(
+		lb.node,
+		in,
+		match,
+		listenPort,
+		virtualService,
+		meshGateway,
+		opts,
+	)
 }
 
 // getWaypointDestinationCluster generates a cluster name for the route. If the destination is invalid

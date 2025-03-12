@@ -1734,19 +1734,13 @@ func (ps *PushContext) initVirtualServices(env *Environment) {
 
 	virtualServices := env.List(gvk.VirtualService, NamespaceAll)
 
-	// values returned from ConfigStore.List are immutable.
-	// Therefore, we make a copy
 	vservices := make([]config.Config, len(virtualServices))
-
-	for i := range vservices {
-		vservices[i] = virtualServices[i].DeepCopy()
-	}
 
 	totalVirtualServices.Record(float64(len(virtualServices)))
 
 	// convert all shortnames in virtual services into FQDNs
-	for _, r := range vservices {
-		resolveVirtualServiceShortnames(r.Spec.(*networking.VirtualService), r.Meta)
+	for i, r := range virtualServices {
+		vservices[i] = resolveVirtualServiceShortnames(r)
 	}
 
 	vservices, ps.virtualServiceIndex.delegates = mergeVirtualServicesIfNeeded(vservices, ps.exportToDefaults.virtualService)
@@ -2328,6 +2322,11 @@ func (ps *PushContext) EnvoyFilters(proxy *Proxy) *MergedEnvoyFilterWrapper {
 func (ps *PushContext) getMatchedEnvoyFilters(proxy *Proxy, namespaces string) []*EnvoyFilterWrapper {
 	matchedEnvoyFilters := make([]*EnvoyFilterWrapper, 0)
 	for _, efw := range ps.envoyFiltersByNamespace[namespaces] {
+		if efw.GetTargetRefs() != nil {
+			// These are meant for a specific target, so we shouldn't treat these as "always match"
+			// In the future, targetRef for EnvoyFilter will likely be implemented -- but currently these would never match
+			continue
+		}
 		if efw.workloadSelector == nil || efw.workloadSelector.SubsetOf(proxy.Labels) {
 			matchedEnvoyFilters = append(matchedEnvoyFilters, efw)
 		}
