@@ -65,6 +65,21 @@ const (
 	FlagCharts = "charts"
 )
 
+// The following fields are populated at build time using -ldflags -X.
+var (
+	// List of the unsupported commands separated by a comma.
+	// Eg: go build ... -ldflags -X PACKAGE_NAME/istioctl/cmd.UnsupportedCmds=command1,command2,command3
+	UnsupportedCmds string
+
+	// General message that is printed for every unsupported commands.
+	// Eg: go build ... -ldflags -X 'PACKAGE_NAME/istioctl/cmd.UnsupportedCmdsMsg=command not supported in <this_context>'
+	UnsupportedCmdsMsg string
+
+	// Specific message that gives the alternative ways of the not supported command.
+	// Eg: go build ... -X 'PACKAGE_NAME/istioctl/cmd.UnsupportedCmdsAlternativeMsg=command1=alternative message cmd1,command2=alternative message cmd2'
+	UnsupportedCmdsAlternativeMsg string
+)
+
 // ConfigAndEnvProcessing uses spf13/viper for overriding CLI parameters
 func ConfigAndEnvProcessing() error {
 	configPath := filepath.Dir(root.IstioConfig)
@@ -143,7 +158,7 @@ debug and diagnose their Istio mesh.
 
 	kubeInjectCmd := kubeinject.InjectCommand(ctx)
 	hideInheritedFlags(kubeInjectCmd, cli.FlagNamespace)
-	rootCmd.AddCommand(unsupportedCmd(kubeInjectCmd, "set the `istio-injection=enabled` label"))
+	rootCmd.AddCommand(kubeInjectCmd)
 
 	experimentalCmd := &cobra.Command{
 		Use:     "experimental",
@@ -187,10 +202,10 @@ debug and diagnose their Istio mesh.
 	rootCmd.AddCommand(admin.Cmd(ctx))
 	experimentalCmd.AddCommand(injector.Cmd(ctx))
 
-	rootCmd.AddCommand(unsupportedCmd(mesh.UninstallCmd(ctx), "delete Istio CR"))
+	rootCmd.AddCommand(mesh.UninstallCmd(ctx))
 
-	experimentalCmd.AddCommand(unsupportedCmd(authz.AuthZ(ctx), "none"))
-	rootCmd.AddCommand(unsupportedCmd(authz.AuthZ(ctx), "none"))
+	experimentalCmd.AddCommand(authz.AuthZ(ctx))
+	rootCmd.AddCommand(seeExperimentalCmd("authz"))
 	experimentalCmd.AddCommand(metrics.Cmd(ctx))
 	experimentalCmd.AddCommand(describe.Cmd(ctx))
 	experimentalCmd.AddCommand(config.Cmd())
@@ -208,27 +223,27 @@ debug and diagnose their Istio mesh.
 
 	dashboardCmd := dashboard.Dashboard(ctx)
 	hideInheritedFlags(dashboardCmd, cli.FlagNamespace, cli.FlagIstioNamespace)
-	rootCmd.AddCommand(unsupportedCmd(dashboardCmd, "use Kiali"))
+	rootCmd.AddCommand(dashboardCmd)
 
 	manifestCmd := mesh.ManifestCmd(ctx)
 	hideInheritedFlags(manifestCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(manifestCmd, "none"))
+	rootCmd.AddCommand(manifestCmd)
 
 	installCmd := mesh.InstallCmd(ctx)
 	hideInheritedFlags(installCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(installCmd, "create Istio CR"))
+	rootCmd.AddCommand(installCmd)
 
 	upgradeCmd := mesh.UpgradeCmd(ctx)
 	hideInheritedFlags(upgradeCmd, cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(upgradeCmd, "update spec.version in Istio CR"))
+	rootCmd.AddCommand(upgradeCmd)
 
 	bugReportCmd := bugreport.Cmd(ctx, root.LoggingOptions)
 	hideInheritedFlags(bugReportCmd, cli.FlagNamespace, cli.FlagIstioNamespace)
-	rootCmd.AddCommand(unsupportedCmd(bugReportCmd, "use istio-must-gather"))
+	rootCmd.AddCommand(bugReportCmd)
 
 	tagCmd := tag.TagCommand(ctx)
 	hideInheritedFlags(tag.TagCommand(ctx), cli.FlagNamespace, cli.FlagIstioNamespace, FlagCharts)
-	rootCmd.AddCommand(unsupportedCmd(tagCmd, "use IstioRevisionTag CR"))
+	rootCmd.AddCommand(tagCmd)
 
 	// leave the multicluster commands in x for backwards compat
 	rootCmd.AddCommand(multicluster.NewCreateRemoteSecretCommand(ctx))
@@ -267,6 +282,8 @@ debug and diagnose their Istio mesh.
 		})
 	}
 
+	disableUnsupportedCmds(rootCmd)
+
 	return rootCmd
 }
 
@@ -289,7 +306,6 @@ func ConfigureLogging(_ *cobra.Command, _ []string) error {
 // Other alternative
 // for graduatedCmd see https://github.com/istio/istio/pull/26408
 // for softGraduatedCmd see https://github.com/istio/istio/pull/26563
-// nolint: unused
 func seeExperimentalCmd(name string) *cobra.Command {
 	msg := fmt.Sprintf("(%s is experimental. Use `istioctl experimental %s`)", name, name)
 	return &cobra.Command{
@@ -301,15 +317,53 @@ func seeExperimentalCmd(name string) *cobra.Command {
 	}
 }
 
-// unsupportedCmd is used to set commands that are not supported for OpenShift Service Mesh.
-func unsupportedCmd(cmd *cobra.Command, alternative string) *cobra.Command {
+// buildUnsupportedCmdsAlternativeMsg builds the map containing the unsupported commands alternative messages
+// from the 'UnsupportedCmdsAlternativeMsg' build ldflag.
+func buildUnsupportedCmdsAlternativeMsg(buildExpr string) map[string]string {
+	cmds := strings.Split(buildExpr, ",")
+	unsupportedCmdsAlternativeMsgs := make(map[string]string)
+	for _, c := range cmds {
+		alt := strings.SplitN(c, "=", 2)
+		unsupportedCmdsAlternativeMsgs[alt[0]] = alt[1]
+	}
+	return unsupportedCmdsAlternativeMsgs
+}
+
+// buildUnsupportedCmds builds the map containing the unsupported commands
+// from the 'UnsupportedCmds' build ldflag.
+func buildUnsupportedCmds(buildExpr string) map[string]bool {
+	cmds := strings.Split(buildExpr, ",")
+	unsupportedCmds := make(map[string]bool)
+	for _, c := range cmds {
+		unsupportedCmds[c] = true
+	}
+	return unsupportedCmds
+}
+
+// unsupportedCmd is used to set a command that is not supported.
+func unsupportedCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Command {
 	cmdName := cmd.Name()
-	msg := fmt.Sprintf("Command `%s` not supported in OpenShift Service Mesh context. Alternative: %s", cmdName, alternative)
+	msg := fmt.Sprintf("`%s` %s", cmdName, message)
+	if len(alternativeMsg) > 0 {
+		msg = fmt.Sprintf("%s. Alternative: %s", msg, alternativeMsg)
+	}
+
 	return &cobra.Command{
 		Use:   cmdName,
 		Short: msg,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return errors.New(msg)
 		},
+	}
+}
+
+// disableUnsupportedCmds is used to disable all the commands that are not supported.
+func disableUnsupportedCmds(cmd *cobra.Command) {
+	unsupportedCmds := buildUnsupportedCmds(UnsupportedCmds)
+	for _, c := range cmd.Commands() {
+		if unsupportedCmds[c.Name()] {
+			cmd.RemoveCommand(c)
+			cmd.AddCommand(unsupportedCmd(c, UnsupportedCmdsMsg, buildUnsupportedCmdsAlternativeMsg(UnsupportedCmdsAlternativeMsg)[c.Name()]))
+		}
 	}
 }
