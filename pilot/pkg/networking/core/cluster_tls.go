@@ -34,6 +34,7 @@ import (
 	xdsfilters "istio.io/istio/pilot/pkg/xds/filters"
 	"istio.io/istio/pkg/log"
 	pm "istio.io/istio/pkg/model"
+	"istio.io/istio/pkg/ptr"
 	"istio.io/istio/pkg/security"
 	"istio.io/istio/pkg/wellknown"
 )
@@ -201,7 +202,7 @@ func constructUpstreamTLS(opts *buildClusterOpts, tls *networking.ClientTLSSetti
 		// Rather than reading directly in Envoy, which does not support rotation, we will
 		// serve them over SDS by reading the files.
 		res := security.SdsCertificateConfig{
-			CaCertificatePath: tls.CaCertificates,
+			CaCertificatePath: ptr.NonEmptyOrDefault(tls.CaCertificates, "system"),
 		}
 		// If CredentialName is not set fallback to file based approach
 		if mutual {
@@ -266,10 +267,10 @@ func applyTLSDefaults(tlsContext *tlsv3.UpstreamTlsContext, tlsDefaults *v1alpha
 	}
 }
 
-// Set auto_sni if EnableAutoSni feature flag is enabled and if sni field is not explicitly set in DR.
+// Set auto_sni if sni field is not explicitly set in DR.
 // Set auto_san_validation if there is no explicit SubjectAltNames specified in DR.
 func setAutoSniAndAutoSanValidation(mc *clusterWrapper, tls *networking.ClientTLSSettings) {
-	if mc == nil || !features.EnableAutoSni {
+	if mc == nil {
 		return
 	}
 
