@@ -65,21 +65,6 @@ const (
 	FlagCharts = "charts"
 )
 
-// The following fields are populated at build time using -ldflags -X.
-var (
-	// List of the unsupported commands separated by a comma.
-	// Eg: go build ... -ldflags -X PACKAGE_NAME/istioctl/cmd.UnsupportedCmds=command1,command2,command3
-	UnsupportedCmds string
-
-	// General message that is printed for every unsupported commands.
-	// Eg: go build ... -ldflags -X 'PACKAGE_NAME/istioctl/cmd.UnsupportedCmdsMsg=command not supported in <this_context>'
-	UnsupportedCmdsMsg string
-
-	// Specific message that gives the alternative ways of the not supported command.
-	// Eg: go build ... -X 'PACKAGE_NAME/istioctl/cmd.UnsupportedCmdsAlternativeMsg=command1=alternative message cmd1,command2=alternative message cmd2'
-	UnsupportedCmdsAlternativeMsg string
-)
-
 // ConfigAndEnvProcessing uses spf13/viper for overriding CLI parameters
 func ConfigAndEnvProcessing() error {
 	configPath := filepath.Dir(root.IstioConfig)
@@ -282,7 +267,7 @@ debug and diagnose their Istio mesh.
 		})
 	}
 
-	disableUnsupportedCmds(rootCmd)
+	disableCmds(rootCmd)
 
 	return rootCmd
 }
@@ -314,56 +299,5 @@ func seeExperimentalCmd(name string) *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return errors.New(msg)
 		},
-	}
-}
-
-// buildUnsupportedCmdsAlternativeMsg builds the map containing the unsupported commands alternative messages
-// from the 'UnsupportedCmdsAlternativeMsg' build ldflag.
-func buildUnsupportedCmdsAlternativeMsg(buildExpr string) map[string]string {
-	cmds := strings.Split(buildExpr, ",")
-	unsupportedCmdsAlternativeMsgs := make(map[string]string)
-	for _, c := range cmds {
-		alt := strings.SplitN(c, "=", 2)
-		unsupportedCmdsAlternativeMsgs[alt[0]] = alt[1]
-	}
-	return unsupportedCmdsAlternativeMsgs
-}
-
-// buildUnsupportedCmds builds the map containing the unsupported commands
-// from the 'UnsupportedCmds' build ldflag.
-func buildUnsupportedCmds(buildExpr string) map[string]bool {
-	cmds := strings.Split(buildExpr, ",")
-	unsupportedCmds := make(map[string]bool)
-	for _, c := range cmds {
-		unsupportedCmds[c] = true
-	}
-	return unsupportedCmds
-}
-
-// unsupportedCmd is used to set a command that is not supported.
-func unsupportedCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Command {
-	cmdName := cmd.Name()
-	msg := fmt.Sprintf("`%s` %s", cmdName, message)
-	if len(alternativeMsg) > 0 {
-		msg = fmt.Sprintf("%s. Alternative: %s", msg, alternativeMsg)
-	}
-
-	return &cobra.Command{
-		Use:   cmdName,
-		Short: msg,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return errors.New(msg)
-		},
-	}
-}
-
-// disableUnsupportedCmds is used to disable all the commands that are not supported.
-func disableUnsupportedCmds(cmd *cobra.Command) {
-	unsupportedCmds := buildUnsupportedCmds(UnsupportedCmds)
-	for _, c := range cmd.Commands() {
-		if unsupportedCmds[c.Name()] {
-			cmd.RemoveCommand(c)
-			cmd.AddCommand(unsupportedCmd(c, UnsupportedCmdsMsg, buildUnsupportedCmdsAlternativeMsg(UnsupportedCmdsAlternativeMsg)[c.Name()]))
-		}
 	}
 }
