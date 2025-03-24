@@ -243,9 +243,6 @@ var (
 	EnableAdditionalIpv4OutboundListenerForIpv6Only = env.RegisterBoolVar("ISTIO_ENABLE_IPV4_OUTBOUND_LISTENER_FOR_IPV6_CLUSTERS", false,
 		"If true, pilot will configure an additional IPv4 listener for outbound traffic in IPv6 only clusters, e.g. AWS EKS IPv6 only clusters.").Get()
 
-	EnableAutoSni = env.Register("ENABLE_AUTO_SNI", true,
-		"If enabled, automatically set SNI when `DestinationRules` do not specify the same").Get()
-
 	EnableVtprotobuf = env.Register("ENABLE_VTPROTOBUF", true,
 		"If true, will use optimized vtprotobuf based marshaling. Requires a build with -tags=vtprotobuf.").Get()
 
@@ -263,6 +260,9 @@ var (
 
 	PreferDestinationRulesTLSForExternalServices = env.Register("PREFER_DESTINATIONRULE_TLS_FOR_EXTERNAL_SERVICES", true,
 		"If true, external services will prefer the TLS settings from DestinationRules over the metadata TLS settings.").Get()
+
+	EnableGatewayAPIManualDeployment = env.Register("ENABLE_GATEWAY_API_MANUAL_DEPLOYMENT", true,
+		"If true, allows users to bind Gateway API resources to existing gateway deployments.").Get()
 )
 
 // UnsafeFeaturesEnabled returns true if any unsafe features are enabled.

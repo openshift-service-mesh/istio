@@ -102,36 +102,44 @@ func IsL4() echo.Checker {
 var (
 	httpValidator = check.And(check.OK(), IsL7())
 	tcpValidator  = check.And(check.OK(), IsL4())
-	callOptions   = []echo.CallOptions{
+	basicCalls    = []echo.CallOptions{
 		{
 			Port:   echo.Port{Name: "http"},
 			Scheme: scheme.HTTP,
 			Count:  10, // TODO use more
 		},
-		//{
-		//	Port: echo.Port{Name: "http"},
-		//	Scheme:   scheme.WebSocket,
-		//	Count:    4,
-		//	Timeout:  time.Second * 2,
-		//},
 		{
 			Port:   echo.Port{Name: "tcp"},
 			Scheme: scheme.TCP,
 			Count:  1,
 		},
-		//{
-		//	Port: echo.Port{Name: "grpc"},
-		//	Scheme:   scheme.GRPC,
-		//	Count:    4,
-		//	Timeout:  time.Second * 2,
-		//},
-		//{
-		//	Port: echo.Port{Name: "https"},
-		//	Scheme:   scheme.HTTPS,
-		//	Count:    4,
-		//	Timeout:  time.Second * 2,
-		//},
 	}
+	allCalls = func() (res []echo.CallOptions) {
+		cases := []struct {
+			Port echo.Port
+			HTTP echo.HTTP
+		}{
+			{Port: ports.HTTP},
+			{Port: ports.GRPC},
+			{Port: ports.HTTP2},
+			{Port: ports.TCP},
+			{Port: ports.HTTPS},
+			{Port: ports.TCPServer},
+			{Port: ports.AutoTCP},
+			{Port: ports.AutoHTTP},
+			{Port: ports.AutoHTTP},
+			{Port: ports.AutoGRPC},
+			{Port: ports.AutoHTTPS},
+			{Port: ports.AutoHTTPS},
+			{Port: ports.HTTPInstance},
+			{Port: ports.HTTPLocalHost},
+			{Port: ports.TCPForHTTP},
+		}
+		for _, c := range cases {
+			res = append(res, echo.CallOptions{Port: c.Port})
+		}
+		return
+	}()
 )
 
 func OriginalSourceCheck(t framework.TestContext, src echo.Instance) echo.Checker {
@@ -148,7 +156,14 @@ func OriginalSourceCheck(t framework.TestContext, src echo.Instance) echo.Checke
 func supportsL7(opt echo.CallOptions, src, dst echo.Instance) bool {
 	s := src.Config().HasSidecar()
 	d := dst.Config().HasSidecar() || dst.Config().HasAnyWaypointProxy()
-	isL7Scheme := opt.Scheme == scheme.HTTP || opt.Scheme == scheme.GRPC || opt.Scheme == scheme.WebSocket
+	sch := opt.Scheme
+	if sch == "" {
+		sch, _ = opt.Port.Scheme()
+	}
+	isL7Scheme := sch == scheme.HTTP || sch == scheme.GRPC || sch == scheme.WebSocket
+	if opt.Port.Name == ports.TCPForHTTP.Name {
+		isL7Scheme = false
+	}
 	return (s || d) && isL7Scheme
 }
 
@@ -159,7 +174,7 @@ func hboneClient(instance echo.Instance) bool {
 }
 
 func TestServices(t *testing.T) {
-	runTest(t, func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions) {
+	runAllCallsTest(t, func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions) {
 		if supportsL7(opt, src, dst) {
 			opt.Check = httpValidator
 		} else {
@@ -204,6 +219,22 @@ func TestServices(t *testing.T) {
 			opt.Check = check.And(opt.Check, check.RequestHeader("X-Envoy-Peer-Metadata", ""))
 		}
 
+		// Applications listening on localhost cannot receive traffic
+		if opt.Port.LocalhostIP {
+			opt.Check = check.Or(check.Error(), check.Status(503))
+		}
+
+		if dst.Config().HasServiceAddressedWaypointProxy() && opt.Port.ServerFirst {
+			// This is a testing gap, not a functional gap. Server first protocols only work for service-only waypoints.
+			// We use a single waypoint for service+workloads, though, which makes this not work
+			t.Skip("https://github.com/istio/istio/issues/55420")
+		}
+
+		if !src.Config().HasProxyCapabilities() && dst.Config().HasSidecar() && opt.Port.ServerFirst {
+			// This is expected to be broken (src clause is because mTLS makes it work)
+			return
+		}
+
 		// TODO test from all source workloads as well
 		src.CallOrFail(t, opt)
 	})
@@ -221,7 +252,7 @@ func TestPodIP(t *testing.T) {
 								if src.Config().HasSidecar() {
 									t.Skip("not supported yet")
 								}
-								for _, opt := range callOptions {
+								for _, opt := range basicCalls {
 									opt := opt.DeepCopy()
 									selfSend := dstWl.Address() == srcWl.Address()
 									if supportsL7(opt, src, dst) {
@@ -628,11 +659,12 @@ spec:
 `).ApplyOrFail(t)
 			opt.Count = 5
 			opt.Timeout = time.Second * 10
+			// Test that we do NOT apply this envoyfilter, since EnvoyFilter is not implemented for waypoints
 			opt.Check = check.And(
 				check.OK(),
 				check.RequestHeaders(map[string]string{
-					"X-Lua-Inbound":   "hello world",
-					"X-Vhost-Inbound": "hello world",
+					"X-Lua-Inbound":   "",
+					"X-Vhost-Inbound": "",
 				}))
 			src.CallOrFail(t, opt)
 		})
@@ -1665,6 +1697,45 @@ spec:
 				Scheme: scheme.HTTP,
 			},
 		},
+		{
+			name: "ISTIO_MUTUAL",
+			config: `
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: "{{.Host}}"
+spec:
+  host: "{{.Host}}"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+`,
+			call: echo.CallOptions{
+				// Should just do HBONE
+				Port:   ports.HTTP,
+				Scheme: scheme.HTTP,
+			},
+		},
+		{
+			name: "ISTIO_MUTUAL and PROXY",
+			config: `
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: "{{.Host}}"
+spec:
+  host: "{{.Host}}"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    proxyProtocol:
+      version: V1
+`,
+			call: echo.CallOptions{
+				Port:   ports.HTTPWithProxy,
+				Scheme: scheme.HTTP,
+			},
+		},
 	}
 	framework.NewTest(t).Run(func(t framework.TestContext) {
 		for _, tt := range cases {
@@ -1674,16 +1745,18 @@ spec:
 						continue
 					}
 					t.NewSubTestf("from %v", src.Config().Service).Run(func(t framework.TestContext) {
+						dst := dst
 						if src.Config().HasSidecar() && dst.Config().HasAnyWaypointProxy() {
-							// TODO: sidecar -> workload waypoint support
-							t.Skip("https://github.com/istio/istio/issues/51445")
+							// Let the DR be enforced by the client
+							// TODO(https://github.com/istio/istio/issues/51445): sidecar -> workload waypoint support
+							dst = apps.Captured
 						}
 						t.ConfigIstio().Eval(apps.Namespace.Name(), map[string]string{
 							"Host": dst.Config().Service,
 						}, tt.config).ApplyOrFail(t)
 						call := tt.call
 						call.To = dst
-						t.Log(src.CallOrFail(t, call))
+						src.CallOrFail(t, call)
 					})
 				}
 			})
@@ -2118,7 +2191,11 @@ func TestServiceEntrySelectsWorkloadEntry(t *testing.T) {
 					resolution: v1alpha3.ServiceEntry_STATIC,
 					to:         apps.MeshExternal,
 				},
-				// TODO dns cases
+				{
+					location:   v1alpha3.ServiceEntry_MESH_EXTERNAL,
+					resolution: v1alpha3.ServiceEntry_DNS,
+					to:         apps.MeshExternal,
+				},
 			}
 
 			// Configure a gateway with one app as the destination to be accessible through the ingress
@@ -2185,9 +2262,11 @@ spec:
 `).
 				WithParams(param.Params{}.SetWellKnown(param.Namespace, apps.Namespace))
 
-			ips, ports := istio.DefaultIngressOrFail(t, t).HTTPAddresses()
+			ingress := istio.DefaultIngressOrFail(t, t)
+			ips, ports := ingress.HTTPAddresses()
 			for _, tc := range testCases {
 				for i, ip := range ips {
+					t.Logf("run %s test with ingress IP %s", tc.resolution, ip)
 					t.NewSubTestf("%s %s %d", tc.location, tc.resolution, i).Run(func(t framework.TestContext) {
 						echotest.
 							New(t, apps.All).
@@ -2201,6 +2280,40 @@ spec:
 								"Location":        tc.location.String(),
 								"IngressIp":       ip,
 								"IngressHttpPort": ports[i],
+							})).
+							Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
+								// TODO validate L7 processing/some headers indicating we reach the svc we wanted
+								from.CallOrFail(t, echo.CallOptions{
+									Address:   "dummy.example.com",
+									DualStack: true,
+									Port:      to.PortForName("http"),
+									Timeout:   time.Millisecond * 500,
+								})
+							})
+					})
+				}
+			}
+
+			for _, tc := range testCases {
+				if tc.resolution != v1alpha3.ServiceEntry_DNS {
+					continue
+				}
+				ingressHost := fmt.Sprintf("%s.%s.svc.cluster.local", ingress.ServiceName(), ingress.Namespace())
+				t.Logf("run %s test with ingress %s", tc.resolution, ingressHost)
+				for idx := range ports {
+					t.NewSubTestf("DNS hostname %s %d", tc.location, idx).Run(func(t framework.TestContext) {
+						echotest.
+							New(t, apps.All).
+							// TODO eventually we can do this for uncaptured -> l7
+							FromMatch(match.Not(match.ServiceName(echo.NamespacedName{
+								Name:      "uncaptured",
+								Namespace: apps.Namespace,
+							}))).
+							Config(cfg.WithParams(param.Params{
+								"Resolution":      tc.resolution.String(),
+								"Location":        tc.location.String(),
+								"IngressIp":       ingressHost,
+								"IngressHttpPort": ports[idx],
 							})).
 							Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
 								// TODO validate L7 processing/some headers indicating we reach the svc we wanted
@@ -2397,7 +2510,7 @@ func RunReachability(testCases []reachability.TestCase, t framework.TestContext)
 			t.NewSubTestf("from %v", src.Config().Service).RunParallel(func(t framework.TestContext) {
 				for _, dst := range svcs {
 					t.NewSubTestf("to %v", dst.Config().Service).RunParallel(func(t framework.TestContext) {
-						for _, opt := range callOptions {
+						for _, opt := range basicCalls {
 							t.NewSubTestf("%v", opt.Scheme).RunParallel(func(t framework.TestContext) {
 								opt := opt.DeepCopy()
 								opt.To = dst
@@ -2565,9 +2678,9 @@ var CheckDeny = check.Or(
 )
 
 // runTest runs a given function against every src/dst pair
-func runTest(t *testing.T, f func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions)) {
+func runAllCallsTest(t *testing.T, f func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions)) {
 	framework.NewTest(t).Run(func(t framework.TestContext) {
-		runTestContext(t, f)
+		runAllTests(t, f)
 	})
 }
 
@@ -2590,13 +2703,25 @@ func runTestToServiceWaypoint(t framework.TestContext, f func(t framework.TestCo
 }
 
 func runTestContext(t framework.TestContext, f func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions)) {
+	runTestContextForCalls(t, basicCalls, f)
+}
+
+func runAllTests(t framework.TestContext, f func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions)) {
+	runTestContextForCalls(t, allCalls, f)
+}
+
+func runTestContextForCalls(
+	t framework.TestContext,
+	callOptions []echo.CallOptions,
+	f func(t framework.TestContext, src echo.Instance, dst echo.Instance, opt echo.CallOptions),
+) {
 	svcs := apps.All
 	for _, src := range svcs {
 		t.NewSubTestf("from %v", src.Config().Service).Run(func(t framework.TestContext) {
 			for _, dst := range svcs {
 				t.NewSubTestf("to %v", dst.Config().Service).Run(func(t framework.TestContext) {
 					for _, opt := range callOptions {
-						t.NewSubTestf("%v", opt.Scheme).Run(func(t framework.TestContext) {
+						t.NewSubTestf("%v", opt.Port.Name).Run(func(t framework.TestContext) {
 							opt := opt.DeepCopy()
 							opt.To = dst
 							opt.Check = check.OK()

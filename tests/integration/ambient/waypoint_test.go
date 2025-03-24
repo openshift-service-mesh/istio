@@ -645,7 +645,7 @@ spec:
 		t.NewSubTest("sidecar-service").Run(func(t framework.TestContext) {
 			for _, src := range apps.Sidecar {
 				for _, dst := range apps.ServiceAddressedWaypoint {
-					for _, opt := range callOptions {
+					for _, opt := range basicCalls {
 						t.NewSubTestf("%v", opt.Scheme).Run(func(t framework.TestContext) {
 							opt = opt.DeepCopy()
 							opt.To = dst
@@ -661,7 +661,7 @@ spec:
 			for _, src := range apps.Sidecar {
 				for _, dst := range apps.WorkloadAddressedWaypoint {
 					for _, dstWl := range dst.WorkloadsOrFail(t) {
-						for _, opt := range callOptions {
+						for _, opt := range basicCalls {
 							t.NewSubTestf("%v-%v", opt.Scheme, dstWl.Address()).Run(func(t framework.TestContext) {
 								opt = opt.DeepCopy()
 								opt.Address = dstWl.Address()
@@ -784,6 +784,112 @@ spec:
 					Check:  CheckDeny,
 				})
 			})
+		})
+	})
+}
+
+func TestTCPRoute(t *testing.T) {
+	framework.NewTest(t).Run(func(t framework.TestContext) {
+		t.ConfigIstio().YAML(apps.Namespace.Name(), `apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: tcproute
+spec:
+  parentRefs:
+    - group: ""
+      kind: Service
+      name: service-addressed-waypoint
+  rules:
+    - backendRefs:
+        - name: captured
+          port: 9090
+          weight: 3
+        - name: uncaptured
+          port: 9090
+          weight: 1
+        - name: service-addressed-waypoint
+          port: 9093
+          weight: 1
+`).ApplyOrFail(t)
+		apps.Captured[0].CallOrFail(t, echo.CallOptions{
+			To:    apps.ServiceAddressedWaypoint,
+			Port:  ports.TCP,
+			Count: 40,
+			Check: check.And(check.OK(), func(result echo.CallResult, err error) error {
+				gotCaptured, gotUncaptured, gotWaypoint := 0, 0, 0
+				for _, r := range result.Responses {
+					if strings.HasPrefix(r.Hostname, "captured-") && r.Port == "19090" {
+						gotCaptured++
+					}
+					if strings.HasPrefix(r.Hostname, "uncaptured-") && r.Port == "19090" {
+						gotUncaptured++
+					}
+					if strings.HasPrefix(r.Hostname, "service-addressed-waypoint-") && r.Port == "16061" {
+						gotWaypoint++
+					}
+				}
+				if gotCaptured == 0 || gotUncaptured == 0 || gotWaypoint == 0 {
+					return fmt.Errorf("didn't hit all expected backends (%v, %v, %v)", gotCaptured, gotUncaptured, gotWaypoint)
+				}
+				if gotCaptured < gotUncaptured || gotCaptured < gotWaypoint {
+					return fmt.Errorf("captured has the highest weight so it should get the most requests (%v, %v, %v)",
+						gotCaptured, gotUncaptured, gotWaypoint)
+				}
+				return nil
+			}),
+		})
+	})
+}
+
+func TestTLSRoute(t *testing.T) {
+	framework.NewTest(t).Run(func(t framework.TestContext) {
+		t.ConfigIstio().YAML(apps.Namespace.Name(), `apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: tlsroute
+spec:
+  parentRefs:
+    - group: ""
+      kind: Service
+      name: service-addressed-waypoint
+  rules:
+    - backendRefs:
+        - name: captured
+          port: 9090
+          weight: 3
+        - name: uncaptured
+          port: 9090
+          weight: 1
+        - name: service-addressed-waypoint
+          port: 9093
+          weight: 1
+`).ApplyOrFail(t)
+		apps.Captured[0].CallOrFail(t, echo.CallOptions{
+			To:    apps.ServiceAddressedWaypoint,
+			Port:  ports.TCP,
+			Count: 40,
+			Check: check.And(check.OK(), func(result echo.CallResult, err error) error {
+				gotCaptured, gotUncaptured, gotWaypoint := 0, 0, 0
+				for _, r := range result.Responses {
+					if strings.HasPrefix(r.Hostname, "captured-") && r.Port == "19090" {
+						gotCaptured++
+					}
+					if strings.HasPrefix(r.Hostname, "uncaptured-") && r.Port == "19090" {
+						gotUncaptured++
+					}
+					if strings.HasPrefix(r.Hostname, "service-addressed-waypoint-") && r.Port == "16061" {
+						gotWaypoint++
+					}
+				}
+				if gotCaptured == 0 || gotUncaptured == 0 || gotWaypoint == 0 {
+					return fmt.Errorf("didn't hit all expected backends (%v, %v, %v)", gotCaptured, gotUncaptured, gotWaypoint)
+				}
+				if gotCaptured < gotUncaptured || gotCaptured < gotWaypoint {
+					return fmt.Errorf("captured has the highest weight so it should get the most requests (%v, %v, %v)",
+						gotCaptured, gotUncaptured, gotWaypoint)
+				}
+				return nil
+			}),
 		})
 	})
 }

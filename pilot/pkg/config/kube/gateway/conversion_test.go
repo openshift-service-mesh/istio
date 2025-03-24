@@ -185,6 +185,27 @@ var services = []*model.Service{
 			Namespace: "allowed-1",
 		},
 		Ports:    ports,
+		Hostname: "a-example.allowed-1.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Namespace: "allowed-2",
+		},
+		Ports:    ports,
+		Hostname: "a-example.allowed-2.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Namespace: "allowed-1",
+		},
+		Ports:    ports,
+		Hostname: "b-example.allowed-1.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Namespace: "allowed-1",
+		},
+		Ports:    ports,
 		Hostname: "svc2.allowed-1.svc.domain.suffix",
 	},
 	{
@@ -291,6 +312,38 @@ var services = []*model.Service{
 		},
 		Ports:    ports,
 		Hostname: "httpbin-bad.default.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Name:      "echo-1",
+			Namespace: "default",
+		},
+		Ports:    ports,
+		Hostname: "echo-1.default.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Name:      "echo-2",
+			Namespace: "default",
+		},
+		Ports:    ports,
+		Hostname: "echo-2.default.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Name:      "echo-port",
+			Namespace: "default",
+		},
+		Ports:    ports,
+		Hostname: "echo-port.default.svc.domain.suffix",
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Name:      "not-found",
+			Namespace: "default",
+		},
+		Ports:    ports,
+		Hostname: "not-found.default.svc.domain.suffix",
 	},
 }
 
@@ -414,6 +467,12 @@ func TestConvertResources(t *testing.T) {
 		{name: "route-precedence"},
 		{name: "waypoint"},
 		{name: "isolation"},
+		{
+			name: "valid-invalid-parent-ref",
+			validationIgnorer: crdvalidation.NewValidationIgnorer(
+				"default/^valid-invalid-parent-ref-",
+			),
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1368,12 +1427,13 @@ func BenchmarkBuildHTTPVirtualServices(b *testing.B) {
 
 func TestExtractGatewayServices(t *testing.T) {
 	tests := []struct {
-		name            string
-		r               GatewayResources
-		kgw             *k8s.GatewaySpec
-		obj             config.Config
-		gatewayServices []string
-		err             *ConfigError
+		name                   string
+		r                      GatewayResources
+		kgw                    *k8s.GatewaySpec
+		obj                    config.Config
+		gatewayServices        []string
+		err                    *ConfigError
+		enableManualDeployment bool
 	}{
 		{
 			name: "managed gateway",
@@ -1387,7 +1447,8 @@ func TestExtractGatewayServices(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			gatewayServices: []string{"foo-istio.default.svc.cluster.local"},
+			gatewayServices:        []string{"foo-istio.default.svc.cluster.local"},
+			enableManualDeployment: true,
 		},
 		{
 			name: "managed gateway with name overridden",
@@ -1404,7 +1465,8 @@ func TestExtractGatewayServices(t *testing.T) {
 					},
 				},
 			},
-			gatewayServices: []string{"bar.default.svc.cluster.local"},
+			gatewayServices:        []string{"bar.default.svc.cluster.local"},
+			enableManualDeployment: true,
 		},
 		{
 			name: "unmanaged gateway",
@@ -1442,10 +1504,46 @@ func TestExtractGatewayServices(t *testing.T) {
 				Reason:  InvalidAddress,
 				Message: "only Hostname is supported, ignoring [1.2.3.4]",
 			},
+			enableManualDeployment: true,
+		},
+		{
+			name: "manual deployment disabled",
+			r:    GatewayResources{Domain: "domain"},
+			kgw: &k8s.GatewaySpec{
+				GatewayClassName: "istio",
+				Addresses: []k8s.GatewayAddress{
+					{
+						Value: "abc",
+					},
+					{
+						Type: func() *k8s.AddressType {
+							t := k8s.HostnameAddressType
+							return &t
+						}(),
+						Value: "example.com",
+					},
+					{
+						Type: func() *k8s.AddressType {
+							t := k8s.IPAddressType
+							return &t
+						}(),
+						Value: "1.2.3.4",
+					},
+				},
+			},
+			obj: config.Config{
+				Meta: config.Meta{
+					Name:      "foo",
+					Namespace: "default",
+				},
+			},
+			gatewayServices:        []string{"foo-istio.default.svc.domain"},
+			enableManualDeployment: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			test.SetForTest(t, &features.EnableGatewayAPIManualDeployment, tt.enableManualDeployment)
 			gatewayServices, err := extractGatewayServices(tt.r, tt.kgw, tt.obj, classInfo{})
 			assert.Equal(t, gatewayServices, tt.gatewayServices)
 			assert.Equal(t, err, tt.err)

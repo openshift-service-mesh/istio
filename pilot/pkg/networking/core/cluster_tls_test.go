@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
+	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 
 	meshconfig "istio.io/api/mesh/v1alpha1"
 	networking "istio.io/api/networking/v1alpha3"
@@ -427,6 +428,31 @@ type expectedResult struct {
 
 // TestBuildUpstreamClusterTLSContext tests the buildUpstreamClusterTLSContext function
 func TestBuildUpstreamClusterTLSContext(t *testing.T) {
+	systemRoot := &tls.CommonTlsContext_CombinedValidationContext{
+		CombinedValidationContext: &tls.CommonTlsContext_CombinedCertificateValidationContext{
+			DefaultValidationContext: &tls.CertificateValidationContext{MatchSubjectAltNames: util.StringToExactMatch([]string{"SAN"})},
+			ValidationContextSdsSecretConfig: &tls.SdsSecretConfig{
+				Name: "file-root:system",
+				SdsConfig: &core.ConfigSource{
+					ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
+						ApiConfigSource: &core.ApiConfigSource{
+							ApiType:                   core.ApiConfigSource_GRPC,
+							SetNodeOnFirstMessageOnly: true,
+							TransportApiVersion:       core.ApiVersion_V3,
+							GrpcServices: []*core.GrpcService{
+								{
+									TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
+										EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: "sds-grpc"},
+									},
+								},
+							},
+						},
+					},
+					ResourceApiVersion: core.ApiVersion_V3,
+				},
+			},
+		},
+	}
 	clientCert := "/path/to/cert"
 	rootCert := "path/to/cacert"
 	clientKey := "/path/to/key"
@@ -434,13 +460,12 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 	credentialName := "some-fake-credential"
 
 	testCases := []struct {
-		name          string
-		opts          *buildClusterOpts
-		tls           *networking.ClientTLSSettings
-		h2            bool
-		router        bool
-		result        expectedResult
-		enableAutoSni bool
+		name   string
+		opts   *buildClusterOpts
+		tls    *networking.ClientTLSSettings
+		h2     bool
+		router bool
+		result expectedResult
 	}{
 		{
 			name: "tls mode disabled",
@@ -621,6 +646,32 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 							TlsMaximumProtocolVersion: tls.TlsParameters_TLSv1_3,
 							TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
 						},
+						ValidationContextType: systemRoot,
+					},
+					Sni: "some-sni.com",
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "tls mode SIMPLE, with no certs specified in tls insecure",
+			opts: &buildClusterOpts{
+				mutable: newTestCluster(),
+			},
+			tls: &networking.ClientTLSSettings{
+				Mode:               networking.ClientTLSSettings_SIMPLE,
+				SubjectAltNames:    []string{"SAN"},
+				Sni:                "some-sni.com",
+				InsecureSkipVerify: wrappers.Bool(true),
+			},
+			result: expectedResult{
+				tlsContext: &tls.UpstreamTlsContext{
+					CommonTlsContext: &tls.CommonTlsContext{
+						TlsParams: &tls.TlsParameters{
+							// if not specified, envoy use TLSv1_2 as default for client.
+							TlsMaximumProtocolVersion: tls.TlsParameters_TLSv1_3,
+							TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
+						},
 						ValidationContextType: &tls.CommonTlsContext_ValidationContext{},
 					},
 					Sni: "some-sni.com",
@@ -645,12 +696,11 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 							TlsMaximumProtocolVersion: tls.TlsParameters_TLSv1_3,
 							TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
 						},
-						ValidationContextType: &tls.CommonTlsContext_ValidationContext{},
+						ValidationContextType: systemRoot,
 					},
 				},
 				err: nil,
 			},
-			enableAutoSni: true,
 		},
 		{
 			name: "tls mode SIMPLE, with AutoSni enabled and sni specified in tls",
@@ -670,13 +720,12 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 							TlsMaximumProtocolVersion: tls.TlsParameters_TLSv1_3,
 							TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
 						},
-						ValidationContextType: &tls.CommonTlsContext_ValidationContext{},
+						ValidationContextType: systemRoot,
 					},
 					Sni: "some-sni.com",
 				},
 				err: nil,
 			},
-			enableAutoSni: true,
 		},
 		{
 			name: "tls mode SIMPLE, with VerifyCert and AutoSni enabled with SubjectAltNames set",
@@ -696,13 +745,12 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 							TlsMaximumProtocolVersion: tls.TlsParameters_TLSv1_3,
 							TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
 						},
-						ValidationContextType: &tls.CommonTlsContext_ValidationContext{},
+						ValidationContextType: systemRoot,
 					},
 					Sni: "some-sni.com",
 				},
 				err: nil,
 			},
-			enableAutoSni: true,
 		},
 		{
 			name: "tls mode SIMPLE, with VerifyCert and AutoSni enabled without SubjectAltNames set",
@@ -721,13 +769,36 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 							TlsMaximumProtocolVersion: tls.TlsParameters_TLSv1_3,
 							TlsMinimumProtocolVersion: tls.TlsParameters_TLSv1_2,
 						},
-						ValidationContextType: &tls.CommonTlsContext_ValidationContext{},
+						ValidationContextType: &tls.CommonTlsContext_CombinedValidationContext{
+							CombinedValidationContext: &tls.CommonTlsContext_CombinedCertificateValidationContext{
+								DefaultValidationContext: &tls.CertificateValidationContext{},
+								ValidationContextSdsSecretConfig: &tls.SdsSecretConfig{
+									Name: "file-root:system",
+									SdsConfig: &core.ConfigSource{
+										ConfigSourceSpecifier: &core.ConfigSource_ApiConfigSource{
+											ApiConfigSource: &core.ApiConfigSource{
+												ApiType:                   core.ApiConfigSource_GRPC,
+												SetNodeOnFirstMessageOnly: true,
+												TransportApiVersion:       core.ApiVersion_V3,
+												GrpcServices: []*core.GrpcService{
+													{
+														TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
+															EnvoyGrpc: &core.GrpcService_EnvoyGrpc{ClusterName: "sds-grpc"},
+														},
+													},
+												},
+											},
+										},
+										ResourceApiVersion: core.ApiVersion_V3,
+									},
+								},
+							},
+						},
 					},
 					Sni: "some-sni.com",
 				},
 				err: nil,
 			},
-			enableAutoSni: true,
 		},
 		{
 			name: "tls mode SIMPLE, with certs specified in tls",
@@ -1062,7 +1133,7 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 								},
 							},
 						},
-						ValidationContextType: &tls.CommonTlsContext_ValidationContext{},
+						ValidationContextType: systemRoot,
 					},
 					Sni: "some-sni.com",
 				},
@@ -1666,7 +1737,6 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			test.SetForTest(t, &features.EnableAutoSni, tc.enableAutoSni)
 			var proxy *model.Proxy
 			if tc.router {
 				proxy = newGatewayProxy()
@@ -1683,7 +1753,7 @@ func TestBuildUpstreamClusterTLSContext(t *testing.T) {
 			} else if diff := cmp.Diff(tc.result.tlsContext, ret, protocmp.Transform()); diff != "" {
 				t.Errorf("got diff: `%v", diff)
 			}
-			if tc.enableAutoSni {
+			if tc.result.tlsContext != nil {
 				if len(tc.tls.Sni) == 0 {
 					assert.Equal(t, tc.opts.mutable.httpProtocolOptions.UpstreamHttpProtocolOptions.AutoSni, true)
 				}

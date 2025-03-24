@@ -33,8 +33,9 @@ import (
 
 func TestSingleton(t *testing.T) {
 	stop := test.NewStop(t)
+	opts := testOptions(t)
 	c := kube.NewFakeClient()
-	ConfigMaps := krt.NewInformer[*corev1.ConfigMap](c, krt.WithStop(stop))
+	ConfigMaps := krt.NewInformer[*corev1.ConfigMap](c, opts.WithName("ConfigMaps")...)
 	c.RunAndWait(stop)
 	cmt := clienttest.NewWriter[*corev1.ConfigMap](t, c)
 	ConfigMapNames := krt.NewSingleton[string](
@@ -43,7 +44,7 @@ func TestSingleton(t *testing.T) {
 			return ptr.Of(slices.Join(",", slices.Map(cms, func(c *corev1.ConfigMap) string {
 				return config.NamespacedName(c).String()
 			})...))
-		}, krt.WithStop(stop),
+		}, opts.WithName("ConfigMapNames")...,
 	)
 	ConfigMapNames.AsCollection().WaitUntilSynced(stop)
 	tt := assert.NewTracker[string](t)
@@ -93,8 +94,8 @@ func TrackerHandler[T any](tracker *assert.Tracker[string]) func(krt.Event[T]) {
 	}
 }
 
-func BatchedTrackerHandler[T any](tracker *assert.Tracker[string]) func([]krt.Event[T], bool) {
-	return func(o []krt.Event[T], initialSync bool) {
+func BatchedTrackerHandler[T any](tracker *assert.Tracker[string]) func([]krt.Event[T]) {
+	return func(o []krt.Event[T]) {
 		tracker.Record(slices.Join(",", slices.Map(o, func(o krt.Event[T]) string {
 			return fmt.Sprintf("%v/%v", o.Event, krt.GetKey(o.Latest()))
 		})...))

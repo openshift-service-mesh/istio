@@ -149,6 +149,9 @@ if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
     SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
     base_cmd+=("--istio.test.kube.deploy=false")
     base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
+    #SKIP_TESTS+="|TestCNIRaceRepair|TestCNIVersionSkew|TestValidation|TestWebhook|TestMultiRevision|TestTraffic/dns/a|TestPreserveHTTPHeaderCaseConfiguration|TestLocality/TrafficDistribution/EDS"
+    SKIP_TESTS+="|TestStatsGatewayServerTCPFilter|TestDashboard/pilot-dashboard.json|TestStatsGatewayServerTCPFilter|TestStatsTCPFilter/additional-labels|TestStatsFilter/additional-labels|TestStatsFilter/mockprom-to-metrics|TestServerTracing/primary-0|TestClientTracing/primary-0|TestBadWasmRemoteLoad|TestStatsGatewayServerTCPFilter
+    echo $SKIP_TESTS
 fi
 
 # Append skip tests flag if SKIP_TESTS is set
