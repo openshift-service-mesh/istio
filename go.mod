@@ -106,6 +106,7 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/gateway-api v1.3.0
+	sigs.k8s.io/gateway-api-inference-extension v0.0.0-20250305175347-5b823746a009
 	sigs.k8s.io/mcs-api v0.1.1-0.20240624222831-d7001fe1d21c
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -180,7 +181,7 @@ require (
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	github.com/onsi/ginkgo/v2 v2.22.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.22.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
