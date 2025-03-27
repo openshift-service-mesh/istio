@@ -122,8 +122,6 @@ function cleanup_istio(){
   kubectl delete istios.sailoperator.io --all --all-namespaces --wait=true
   kubectl get clusterrole | grep istio | awk '{print $1}' | xargs kubectl delete clusterrole
   kubectl get clusterrolebinding | grep istio | awk '{print $1}' | xargs kubectl delete clusterrolebinding
-  oc delete ns $ISTIOCNI_NAMESPACE
-  oc delete ns $NAMESPACE
   echo "Cleanup completed."
 }
 

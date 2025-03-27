@@ -31,7 +31,7 @@ SKIP_SETUP="${SKIP_SETUP:-"false"}"
 INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
 CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
-INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"true"}"
+INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -149,9 +149,6 @@ if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
     SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
     base_cmd+=("--istio.test.kube.deploy=false")
     base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
-    #SKIP_TESTS+="|TestCNIRaceRepair|TestCNIVersionSkew|TestValidation|TestWebhook|TestMultiRevision|TestTraffic/dns/a|TestPreserveHTTPHeaderCaseConfiguration|TestLocality/TrafficDistribution/EDS"
-    SKIP_TESTS+="|TestStatsGatewayServerTCPFilter|TestDashboard/pilot-dashboard.json|TestStatsGatewayServerTCPFilter|TestStatsTCPFilter/additional-labels|TestStatsFilter/additional-labels|TestStatsFilter/mockprom-to-metrics|TestServerTracing/primary-0|TestClientTracing/primary-0|TestBadWasmRemoteLoad|TestStatsGatewayServerTCPFilter
-    echo $SKIP_TESTS
 fi
 
 # Append skip tests flag if SKIP_TESTS is set
