@@ -31,6 +31,7 @@ WD=$(dirname "$0")
 WD=$(cd "$WD"; pwd)
 TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
+SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
 
 function setup_internal_registry() {
   # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target. 
@@ -177,4 +178,33 @@ spec:
   timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until oc get IPAddressPool default -n metallb-system; do sleep 5; done && echo "The IP address pool has been created."'
 
   echo "MetalLB has been deployed and configured with the IP address pool."
+}
+
+#need to change env variables since make deploy of sail-operator uses them
+function env_save(){
+  INICIAL_NAMESPACE="$NAMESPACE"
+  INICIAL_HUB="$HUB"
+  INITIAL_TAG="$TAG"
+}
+function cleanup_sail_repo() {
+    echo "Cleaning up..."
+    cd .. 2>/dev/null || true
+    rm -rf sail-operator
+    export NAMESPACE="$INICIAL_NAMESPACE"
+    export HUB="$INICIAL_HUB"
+    export TAG="$INITIAL_TAG"
+}
+
+function deploy_operator(){
+  env_save
+  unset HUB
+  unset TAG
+  unset NAMESPACE
+  git clone --depth 1 --branch main $SAIL_REPO_URL || { echo "Failed to clone sail-operator repo"; exit 1; }
+  cd sail-operator
+  make deploy || { echo "sail-operator make deploy failed"; cleanup_sail_repo ; exit 1; }
+  oc -n sail-operator wait --for=condition=Available deployment/sail-operator --timeout=240s || { echo "Failed to start sail-operator"; exit 1; }
+  cleanup_sail_repo
+  echo "Sail operator deployed"
+
 }
