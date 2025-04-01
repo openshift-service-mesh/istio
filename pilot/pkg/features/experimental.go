@@ -210,4 +210,7 @@ var (
 
 	CACertConfigMapName = env.Register("PILOT_CA_CERT_CONFIGMAP", "istio-ca-root-cert",
 		"The name of the ConfigMap that stores the Root CA Certificate that is used by istiod").Get()
+
+	EnableGatewayAPICACertOnly = env.Register("PILOT_ENABLE_GATEWAY_API_CA_CERT_ONLY", false,
+		"If true only Namespaces with a Gateway API Gateway resource in it will get injected the CA Bundle ConfigMap").Get()
 )

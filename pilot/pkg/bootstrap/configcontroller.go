@@ -176,6 +176,24 @@ func (s *Server) initK8SConfigStore(args *PilotArgs) error {
 				Run(stop)
 			return nil
 		})
+		if features.EnableGatewayAPICACertOnly {
+			s.addTerminatingStartFunc("gateway deployment controller", func(stop <-chan struct{}) error {
+				leaderelection.
+					NewPerRevisionLeaderElection(args.Namespace, args.PodName, leaderelection.GatewayCaController, args.Revision, s.kubeClient).
+					AddRunFunction(func(leaderStop <-chan struct{}) {
+						// We can only run this if the Gateway CRD is created
+						if s.kubeClient.CrdWatcher().WaitForCRD(gvr.KubernetesGateway, leaderStop) {
+							tagWatcher := revisions.NewTagWatcher(s.kubeClient, args.Revision)
+							controller := gateway.NewGatewayCAController(s.kubeClient, s.istiodCertBundleWatcher) // tagWatcher, args.Revision)
+							s.kubeClient.RunAndWait(stop)
+							go tagWatcher.Run(leaderStop)
+							controller.Run(leaderStop)
+						}
+					}).
+					Run(stop)
+				return nil
+			})
+		}
 		if features.EnableGatewayAPIDeploymentController {
 			s.addTerminatingStartFunc("gateway deployment controller", func(stop <-chan struct{}) error {
 				leaderelection.
