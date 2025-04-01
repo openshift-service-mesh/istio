@@ -18,8 +18,8 @@ require (
 	github.com/coreos/go-oidc/v3 v3.13.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/cli v28.0.1+incompatible
-	github.com/envoyproxy/go-control-plane/contrib v1.32.5-0.20250321030126-8a031573ee77
-	github.com/envoyproxy/go-control-plane/envoy v1.32.5-0.20250321030126-8a031573ee77
+	github.com/envoyproxy/go-control-plane/contrib v1.32.5-0.20250328202736-d2aa792b145a
+	github.com/envoyproxy/go-control-plane/envoy v1.32.5-0.20250328202736-d2aa792b145a
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.18.0
 	github.com/felixge/fgprof v0.9.5
@@ -80,22 +80,22 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/oauth2 v0.28.0
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.31.0
 	golang.org/x/time v0.11.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250311190419-81fb87f6b8bf
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250311190419-81fb87f6b8bf
+	google.golang.org/genproto/googleapis/api v0.0.0-20250324211829-b45e905df463
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463
 	google.golang.org/grpc v1.71.0
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.17.1
-	istio.io/api v1.25.0-alpha.0.0.20250326164952-ab83a1194b48
-	istio.io/client-go v1.25.0-alpha.0.0.20250326165751-7f8bd8435da7
+	istio.io/api v1.25.0-alpha.0.0.20250331190247-13a974093be6
+	istio.io/client-go v1.25.0-alpha.0.0.20250331191145-cd28712270ac
 	k8s.io/api v0.32.3
 	k8s.io/apiextensions-apiserver v0.32.3
 	k8s.io/apimachinery v0.32.3
