@@ -33,6 +33,8 @@ set -x
 # fail if any command in the pipeline fails
 set -o pipefail
 
+SKIP_CLEANUP="${SKIP_CLEANUP:-"false"}"
+
 
 function usage() {
     echo "Usage: $0 <install|cleanup> <input_yaml>"
@@ -72,7 +74,8 @@ ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
 INGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/ingress-gateway-values.yaml"
 EGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/egress-gateway-values.yaml"
 
-CONVERTER_ADDRESS="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/main/tools/configuration-converter.sh"
+CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
+CONVERTER_ADDRESS="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/tools/configuration-converter.sh"
 CONVERTER_SCRIPT=$(basename $CONVERTER_ADDRESS)
 
 function download_execute_converter(){
@@ -93,15 +96,38 @@ function install_istio_cni(){
   echo "istioCNI created."
 }
 
-function install_istiod(){
+function install_istio(){
   # overwrite sailoperator version before applying it
   oc create namespace "${NAMESPACE}" || true
   if [ "${SAIL_API_VERSION:-}" != "" ]; then
     yq -i eval ".apiVersion = \"sailoperator.io/$SAIL_API_VERSION\"" "$WORKDIR/$SAIL_IOP_FILE"
   fi
-  oc apply -f "$WORKDIR/$SAIL_IOP_FILE" || { echo "Failed to install istiod"; kubectl get istio default -o yaml;}
+  patch_config
+  oc apply -f "$WORKDIR/$SAIL_IOP_FILE" || { echo "Failed to install istio"; kubectl get istio default -o yaml;}
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istiod --timeout=240s || { sleep 60; }
   echo "istiod created."
+}
+
+SECRET_NAME="istio-ca-secret"
+WEBHOOK_FILE="$PROW/config/validatingwebhook.yaml"
+
+function patch_config() {
+  # adds some control plane values that are mandatory and not available in iop.yaml
+  if [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
+  # Workaround until https://github.com/istio/istio/pull/55408 is merged
+    yq eval '
+      .spec.values.meshConfig.enableTracing = true |
+      .spec.values.pilot.traceSampling = 100.0 |
+      .spec.values.global.proxy.tracer = "zipkin"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured tracing for Zipkin."
+  fi
+
+  # Workaround until https://github.com/istio-ecosystem/sail-operator/issues/749 is fixed
+  CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml | grep "ca-cert" | awk '{print $2}')
+  sed -i "s|<base64-encoded-CA-cert>|$CA_BUNDLE|g" "$WEBHOOK_FILE"
+  kubectl apply -f "$WEBHOOK_FILE"
+  sed -i "s|$CA_BUNDLE|<base64-encoded-CA-cert>|g" "$WEBHOOK_FILE"
 }
 
 # Install ingress and egress gateways
@@ -110,15 +136,15 @@ function install_gateways(){
   oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1) -n istio-system;}
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk "$3==\"ErrImagePull\" {print $1}" | head -n 1) -n istio-system; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
 
 }
 
 function cleanup_istio(){
-  kubectl delete all --all -n $ISTIOCNI_NAMESPACE
-  kubectl delete all --all -n $NAMESPACE
+  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE"
+  kubectl delete all --all -n "$NAMESPACE"
   kubectl delete istios.sailoperator.io --all --all-namespaces --wait=true
   kubectl get clusterrole | grep istio | awk '{print $1}' | xargs kubectl delete clusterrole
   kubectl get clusterrolebinding | grep istio | awk '{print $1}' | xargs kubectl delete clusterrolebinding
@@ -128,8 +154,12 @@ function cleanup_istio(){
 if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
   install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
-  install_istiod || { echo "Failed to install Istiod"; exit 1; }
+  install_istio || { echo "Failed to install Istio"; exit 1; }
   install_gateways || { echo "Failed to install gateways"; exit 1; }
 elif [ "$1" = "cleanup" ]; then
-  cleanup_istio || { echo "Failed to cleanup cluster"; exit 1; }
+  if [ "$SKIP_CLEANUP" = "true" ]; then
+    echo "Skipping cleanup because SKIP_CLEANUP is set to true."
+  else
+    cleanup_istio || { echo "Failed to cleanup cluster"; exit 1; }
+  fi
 fi
