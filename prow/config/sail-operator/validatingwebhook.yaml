@@ -1,0 +1,26 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: istiod-default-validator
+  labels:
+    app: istiod
+    release: istio
+webhooks:
+  - name: rev.validation.istio.io
+    clientConfig:
+      service:
+        name: istiod
+        namespace: istio-system
+        path: /validate
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMvVENDQWVXZ0F3SUJBZ0lSQVAwa2VmOC9EenZKVkVXM2VFMDJiM3N3RFFZSktvWklodmNOQVFFTEJRQXcKR0RFV01CUUdBMVVFQ2hNTlkyeDFjM1JsY2k1c2IyTmhiREFlRncweU5UQTBNRE13T0RVMU5EaGFGdzB6TlRBMApNREV3T0RVMU5EaGFNQmd4RmpBVUJnTlZCQW9URFdOc2RYTjBaWEl1Ykc5allXd3dnZ0VpTUEwR0NTcUdTSWIzCkRRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQ3dsOFpsUThnZSs4RDh4R0pocTI3M1FybmFBNEFJNnpWbXZ4ekwKbmtNSWxsZ2NIcjhmUitwSVRUQWZ0YUY1TTdtOHR4SmliMzBRVkZsK1ZmallyNEkyTWRWcVJ5SlFPem1mWUxtaQpzYm9FSEhKQVROZ1drQm4xUkRLa25TNFZMd2FweEo3eFZRZkZPK3VKNU8rRnEzVXg4ck9ra0djTUI3TU9aMEZrCkJnT3BKSENlKyt4UGpWWC90d0VsZjd0VmFTOUhWSkIzN0hjaVRUVVkweklacmRnMFByRUVYcjl6Ukt2TzZidlIKQmJ4eFl5VitTMUR0NVMrdkNROVN3WStqQWs0YlhpaEFDdFhrQStxdXF1aFpsUnI5bGp0Z1Zid0pDNHU3UFFtYQpCSWQxVnhHVFZ2c0hpbFlXeWllN01WVkJuTWRRcE50LzdDbjJGUDlzWkVUY0hLNGpBZ01CQUFHalFqQkFNQTRHCkExVWREd0VCL3dRRUF3SUNCREFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQjBHQTFVZERnUVdCQlN0UTQ1YXZzZ04KT0czN1IweUFtWU9jV1M0Y3RUQU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUFWMnFLeEZkcEtkTzY4WExHY2dHcQpFTGtlblcxd2pNZ05rbUtSbWs2Y0hRak8zTUY0dWxjaXZ0SVFaRFpmcmhvWlBWTjhmVWNIbmpZeW00N25JdUFFClRJRXFvZE9teCtobVl5RmgvcE1IRnBLNFNaR0s0bFJjeWVvbytSOUxidk1hL1Mva2wybjZ5WkZNa1Q1Z3NOc28KMURmVENER3NldzNCd3ZqNW5oZEswdHE5Y1o4UzU3emMvdFRocXJZK3JuaU5nN1ZlUWdjWWpKWWxJREpnZmpBcwpFMWNUam1ySEh3MjUrSEtVbThxTjFXRllmMmNZdXRURm1jMnZPc3haa1kxN25ZckVwcGtYYjN0RG9sTnlldk9VCkdhbDBKZ1hweUxSdWIrSGd2di9xMVY3Q3lRNXV5ZDI0QkJMRzUwT3NDa0JKY2g5eDg1VmxYSG9LaEI2MGxjU2kKM1E9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    rules:
+      - apiGroups: ["security.istio.io", "networking.istio.io", "telemetry.istio.io", "extensions.istio.io"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["*"]
+        scope: "*"
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    timeoutSeconds: 10
