@@ -18,8 +18,12 @@
 package gatewayinstance
 
 import (
+	"context"
 	"fmt"
 	"testing"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/http/headers"
@@ -80,6 +84,7 @@ values:
     env:
       PILOT_GATEWAY_API_DEFAULT_GATEWAYCLASS_NAME: "gw-provider"
       PILOT_GATEWAY_API_CONTROLLER_NAME: "gw-provider.io/controller"
+      PILOT_ENABLE_GATEWAY_API_CA_CERT_ONLY: "true"
   global:
     trustBundleName: gateway-root-cert
     istioNamespace: %s`,
@@ -217,6 +222,7 @@ func TestGatewayInstance(t *testing.T) {
 			deployGatewayOrFail(t)
 			t.NewSubTest("external").Run(ExternalServiceTest)
 			t.NewSubTest("mesh").Run(MeshServiceTest)
+			t.NewSubTest("cabundle").Run(CABundleInjectionTest)
 		})
 }
 
@@ -291,6 +297,52 @@ func MeshServiceTest(t framework.TestContext) {
 				Address: fmt.Sprintf("istio-ingressgateway.%s.svc.cluster.local", meshInstanceNS.Name()),
 				Check:   tc.check,
 			})
+		})
+	}
+}
+
+func CABundleInjectionTest(t framework.TestContext) {
+	testCases := []struct {
+		shouldExist  bool
+		namespace    namespace.Instance
+		caBundleName string
+	}{
+		{
+			shouldExist:  true,
+			namespace:    externalNS,
+			caBundleName: "gateway-root-cert",
+		},
+		{
+			shouldExist:  false,
+			namespace:    echoNS,
+			caBundleName: "gateway-root-cert",
+		},
+		{
+			shouldExist:  true,
+			namespace:    echoNS,
+			caBundleName: "istio-ca-root-cert",
+		},
+		{
+			shouldExist:  true,
+			namespace:    meshInstanceNS,
+			caBundleName: "istio-ca-root-cert",
+		},
+		{
+			shouldExist:  false,
+			namespace:    meshInstanceNS,
+			caBundleName: "gateway-root-cert",
+		},
+	}
+	for _, tc := range testCases {
+		t.NewSubTest(fmt.Sprintf("gateway-ca-injected-in-namespace-%s-%v", tc.namespace.Name(), tc.shouldExist)).Run(func(t framework.TestContext) {
+			for _, c := range t.Clusters() {
+				_, err := c.Kube().CoreV1().ConfigMaps(tc.namespace.Name()).Get(context.TODO(), tc.caBundleName, v1.GetOptions{})
+				if tc.shouldExist && err != nil {
+					t.Errorf("%s should exist in %s. unexpected error: %v", tc.caBundleName, tc.namespace.Name(), err)
+				} else if !tc.shouldExist && !apierrors.IsNotFound(err) {
+					t.Errorf("%s should not exist in %s. unexpected error: %v", tc.caBundleName, tc.namespace.Name(), err)
+				}
+			}
 		})
 	}
 }
