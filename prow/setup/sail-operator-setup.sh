@@ -66,7 +66,14 @@ WORKDIR="$2"
 IOP_FILE="$2"/iop.yaml
 SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
 
-ISTIO_VERSION="${ISTIO_VERSION:-v1.24-latest}"
+CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
+
+# get istio version from versions.yaml
+VERSION_FILE="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/pkg/istioversion/versions.yaml"
+if [ -z "${ISTIO_VERSION:-}" ]; then
+  ISTIO_VERSION="$(curl -s "$VERSION_FILE" | grep -E 'name: v[0-9]+\.[0-9]+' | sed -E 's/.*(v[0-9]+\.[0-9]+).*/\1/' | sort -Vr | head -n1)-latest"
+fi
+  
 NAMESPACE="${NAMESPACE:-istio-system}"
 ISTIOCNI_NAMESPACE="${ISTIOCNI_NAMESPACE:-istio-cni}"
 
@@ -74,9 +81,8 @@ ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
 INGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/ingress-gateway-values.yaml"
 EGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/egress-gateway-values.yaml"
 
-CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
 CONVERTER_ADDRESS="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/tools/configuration-converter.sh"
-CONVERTER_SCRIPT=$(basename $CONVERTER_ADDRESS)
+CONVERTER_SCRIPT=$(basename "$CONVERTER_ADDRESS")
 
 function download_execute_converter(){
   cd "${PROW}"
@@ -109,7 +115,7 @@ function install_istio(){
 }
 
 SECRET_NAME="istio-ca-secret"
-WEBHOOK_FILE="$PROW/config/validatingwebhook.yaml"
+WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
 
 function patch_config() {
   # adds some control plane values that are mandatory and not available in iop.yaml
@@ -124,7 +130,22 @@ function patch_config() {
   fi
 
   # Workaround until https://github.com/istio-ecosystem/sail-operator/issues/749 is fixed
-  CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml | grep "ca-cert" | awk '{print $2}')
+  CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
+
+  # If not found, sleep for 5 seconds and retry once
+  if [ -z "$CA_BUNDLE" ]; then
+    echo "Secret not found. Sleeping for 5 seconds before retrying..."
+    sleep 5
+    
+    # Retry once
+    CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
+    
+    if [ -z "$CA_BUNDLE" ]; then
+      echo "Secret still not found after retry. Exiting."
+      exit 1
+    fi
+  fi  
+
   sed -i "s|<base64-encoded-CA-cert>|$CA_BUNDLE|g" "$WEBHOOK_FILE"
   kubectl apply -f "$WEBHOOK_FILE"
   sed -i "s|$CA_BUNDLE|<base64-encoded-CA-cert>|g" "$WEBHOOK_FILE"
@@ -139,7 +160,6 @@ function install_gateways(){
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk "$3==\"ErrImagePull\" {print $1}" | head -n 1) -n istio-system; exit 1;}
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
-
 }
 
 function cleanup_istio(){
