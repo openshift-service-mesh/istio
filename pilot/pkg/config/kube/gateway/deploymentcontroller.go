@@ -443,7 +443,11 @@ func extractInfrastructureMetadata(gwInfra *gatewayv1.GatewayInfrastructure, isL
 			infra[string(k)] = string(v)
 		}
 		return infra
-	} else if isLabel {
+	}
+	if !features.EnableGatewayAPICopyLabelsAnnotations {
+		return make(map[string]string)
+	}
+	if isLabel {
 		if gw.GetLabels() == nil {
 			return make(map[string]string)
 		}
