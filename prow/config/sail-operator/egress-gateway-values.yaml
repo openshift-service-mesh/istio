@@ -1,0 +1,9 @@
+platform: openshift
+autoscaling:
+  enabled: false
+
+meshConfig:
+  accessLogFile: /dev/stdout
+
+service:
+  type: ClusterIP

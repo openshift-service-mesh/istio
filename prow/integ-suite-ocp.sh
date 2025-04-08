@@ -28,6 +28,10 @@ SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
 SKIP_SETUP="${SKIP_SETUP:-"false"}"
 INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
+OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
+CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
+INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
+
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
 # Jira: https://issues.redhat.com/browse/OSSM-8029
@@ -95,6 +99,11 @@ else
     echo "Skipping the setup"
 fi
 
+# Install Sail Operator
+if [ "${INSTALL_SAIL_OPERATOR}" == "true" ]; then
+    deploy_operator
+fi
+
 # Check if the test run should be skipped
 # This is a workaround until downstream tests can be executed by using this script.
 # Jira: https://issues.redhat.com/browse/OSSM-8029
@@ -134,6 +143,13 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.tag=${TAG}"
           "--istio.test.openshift")
 
+# Append sail operator setup script to base command
+if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
+    SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
+    base_cmd+=("--istio.test.kube.deploy=false")
+    base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
+fi
+
 # Append skip tests flag if SKIP_TESTS is set
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
@@ -151,4 +167,4 @@ else
 fi
 
 # Exit with the status of the test command
-exit $test_status
+exit "$test_status"
