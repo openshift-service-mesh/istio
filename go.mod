@@ -18,8 +18,8 @@ require (
 	github.com/coreos/go-oidc/v3 v3.13.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/cli v28.0.1+incompatible
-	github.com/envoyproxy/go-control-plane/contrib v1.32.5-0.20250328202736-d2aa792b145a
-	github.com/envoyproxy/go-control-plane/envoy v1.32.5-0.20250328202736-d2aa792b145a
+	github.com/envoyproxy/go-control-plane/contrib v1.32.5-0.20250405152605-3d52a2c138ee
+	github.com/envoyproxy/go-control-plane/envoy v1.32.5-0.20250405152605-3d52a2c138ee
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.18.0
 	github.com/felixge/fgprof v0.9.5
@@ -105,8 +105,8 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubectl v0.32.3
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
-	sigs.k8s.io/controller-runtime v0.20.3
-	sigs.k8s.io/gateway-api v1.3.0-rc.1.0.20250328231839-d923573c45ef
+	sigs.k8s.io/controller-runtime v0.20.4
+	sigs.k8s.io/gateway-api v1.3.0-rc.1.0.20250404104637-92efbedcc2b4
 	sigs.k8s.io/mcs-api v0.1.1-0.20240624222831-d7001fe1d21c
 	sigs.k8s.io/yaml v1.4.0
 )
