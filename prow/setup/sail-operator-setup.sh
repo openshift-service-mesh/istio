@@ -114,9 +114,6 @@ function install_istio(){
   echo "istiod created."
 }
 
-SECRET_NAME="istio-ca-secret"
-WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
-
 function patch_config() {
   # adds some control plane values that are mandatory and not available in iop.yaml
   if [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
@@ -127,15 +124,27 @@ function patch_config() {
       .spec.values.global.proxy.tracer = "zipkin"
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured tracing for Zipkin."
-  fi
 
+  elif [[ "$WORKDIR" == *"-pilot-/"* ]]; then
+    # Fix for TestTraffic/dns/a/ tests
+    yq eval '
+      .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Enabled DNS capture for Istio proxy."
+  fi
+}
+
+SECRET_NAME="istio-ca-secret"
+WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
+
+function install_validatingwebhook(){
   # Workaround until https://github.com/istio-ecosystem/sail-operator/issues/749 is fixed
   CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
 
   # If not found, sleep for 5 seconds and retry once
   if [ -z "$CA_BUNDLE" ]; then
-    echo "Secret not found. Sleeping for 5 seconds before retrying..."
-    sleep 5
+    echo "Secret not found. Sleeping for 10 seconds before retrying..."
+    sleep 10
     
     # Retry once
     CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
@@ -157,6 +166,9 @@ function install_gateways(){
   oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
+  # patch egress gateway canonical-revision
+  yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
+  oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk "$3==\"ErrImagePull\" {print $1}" | head -n 1) -n istio-system; exit 1;}
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
@@ -175,6 +187,7 @@ if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
   install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
   install_istio || { echo "Failed to install Istio"; exit 1; }
+  install_validatingwebhook || { echo "Failed to install validatingwebhook"; exit 1; }
   install_gateways || { echo "Failed to install gateways"; exit 1; }
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
@@ -183,3 +196,4 @@ elif [ "$1" = "cleanup" ]; then
     cleanup_istio || { echo "Failed to cleanup cluster"; exit 1; }
   fi
 fi
+
