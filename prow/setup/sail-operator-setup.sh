@@ -175,16 +175,29 @@ function patch_config() {
       .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Enabled DNS capture for Istio proxy."
-    
   fi
+}
 
-  # Set Ambient config if set
-  if [[ "$AMBIENT" == "true" ]]; then
-    # Add discoverySelectors to match Helm behavior
-    yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchExpressions": [{"key": "istio.io/test-exclude-namespace", "operator": "DoesNotExist"}]}]' -i "$WORKDIR/$SAIL_IOP_FILE"
+SECRET_NAME="istio-ca-secret"
+WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
 
-    # Add configurations for ServiceEntry/DNS resolution
-    yq eval '.spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"' -i "$WORKDIR/$SAIL_IOP_FILE"
+function install_validatingwebhook(){
+  # Workaround until https://github.com/istio-ecosystem/sail-operator/issues/749 is fixed
+  CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
+
+  # If not found, sleep for 5 seconds and retry once
+  if [ -z "$CA_BUNDLE" ]; then
+    echo "Secret not found. Sleeping for 10 seconds before retrying..."
+    sleep 10
+    
+    # Retry once
+    CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
+    
+    if [ -z "$CA_BUNDLE" ]; then
+      echo "Secret still not found after retry. Exiting."
+      exit 1
+    fi
+  fi  
 
     echo "Configured Ambient mode for Istio."
   fi
@@ -320,7 +333,7 @@ function install_gateways() {
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1)" -n istio-system; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk "$3==\"ErrImagePull\" {print $1}" | head -n 1) -n istio-system; exit 1;}
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
 }
@@ -362,6 +375,7 @@ if [ "$1" = "install" ]; then
     install_ztunnel || { echo "Failed to install ZTunnel"; exit 1; }
   fi
   install_istio || { echo "Failed to install Istio"; exit 1; }
+  install_validatingwebhook || { echo "Failed to install validatingwebhook"; exit 1; }
   install_gateways || { echo "Failed to install gateways"; exit 1; }
   #We need to patch istio gw api if istio version is before v1.26.0 Because the fix which lets execute GatewayConformance test on OCP
   #is introduced in  istio v1.26.0 https://github.com/kubernetes-sigs/gateway-api/pull/3389. This patch is introduced as workaround to run the tests
