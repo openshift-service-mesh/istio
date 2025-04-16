@@ -18,9 +18,9 @@ var (
 	// Eg: go build ... -ldflags -X 'PACKAGE_NAME/istioctl/cmd.disabledCmdsMsg=command not supported in <this_context>'
 	disabledCmdsMsg string
 
-	// Optional: Specific message that gives the alternative ways of the disabled commands.
-	// Eg: go build ... -X 'PACKAGE_NAME/istioctl/cmd.disabledCmdsAlternativeMsg=command1=alternative message cmd1;command2=alternative message cmd2'
-	disabledCmdsAlternativeMsg string
+	// Optional: Additionnal information for specific commands.
+	// Eg: go build ... -X 'PACKAGE_NAME/istioctl/cmd.disabledCmdsExtraInfo=command1=extra info about cmd1;command2=extra info about cmd2'
+	disabledCmdsExtraInfo string
 )
 
 const (
@@ -28,69 +28,36 @@ const (
 )
 
 type disabledCommand struct {
-	name        string
-	disabled    bool
-	alternative string
+	name      string
+	disabled  bool
+	extraInfo string
 }
 
-type disabledCommands struct {
-	all []disabledCommand
-}
+// newDisableCommands creates the map of disabled commands from the 'disabledCmds' build ldflag.
+func newDisableCommands(buildDisableCmds, buildExtraInfo string) map[string]*disabledCommand {
+	commands := make(map[string]*disabledCommand)
+	cmds := strings.Split(buildDisableCmds, ";")
+	extra := strings.Split(buildExtraInfo, ";")
 
-func (dc *disabledCommands) setAlternativeByName(name, alternative string) {
-	for i, c := range dc.all {
-		if c.name == name {
-			dc.all[i].alternative = alternative
-			return
-		}
-	}
-}
-
-func (dc *disabledCommands) getAlternativeByName(name string) string {
-	for i, c := range dc.all {
-		if c.name == name {
-			return dc.all[i].alternative
-		}
-	}
-	return ""
-}
-
-func (dc *disabledCommands) isDisabledByName(name string) bool {
-	for i, c := range dc.all {
-		if c.name == name {
-			return dc.all[i].disabled
-		}
-	}
-	return false
-}
-
-// init adds the disabled commands from the 'disabledCmds' build ldflag.
-func (dc *disabledCommands) init(buildExpr string) {
-	cmds := strings.Split(buildExpr, ";")
+	// Adding disabled commands into the map
 	for _, c := range cmds {
-		dc.all = append(dc.all, disabledCommand{
-			name:        c,
-			disabled:    true,
-			alternative: "",
-		})
-	}
-}
-
-// setAlternativeMessages sets the disabled commands alternative messages
-// from the 'disabledCmdsAlternativeMsg' build ldflag.
-func (dc *disabledCommands) setAlternativeMessages(buildExpr string) error {
-	cmds := strings.Split(buildExpr, ";")
-	for _, c := range cmds {
-		alt := strings.SplitN(c, "=", 2)
-		if len(alt) != 2 {
-			return errors.New("not correctly formatted")
+		commands[c] = &disabledCommand{
+			name:     c,
+			disabled: true,
 		}
-		dc.setAlternativeByName(alt[0], alt[1])
 	}
-	return nil
+
+	// Setting the extra info for specific disabled commands
+	for _, e := range extra {
+		extraInfo := strings.SplitN(e, "=", 2)
+		if len(extraInfo) == 2 {
+			commands[extraInfo[0]].extraInfo = extraInfo[1]
+		}
+	}
+	return commands
 }
 
-// disabledCmd is used to set a command as disabled.
+// disabledCmd is used to set and return a command as disabled.
 func disabledCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Command {
 	cmdName := cmd.Name()
 
@@ -115,14 +82,11 @@ func disabledCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Comm
 
 // disableCmds disables all the flagged "disabled" commands.
 func disableCmds(cmd *cobra.Command) {
-	var dCmds disabledCommands
-	dCmds.init(disabledCmds)
-	dCmds.setAlternativeMessages(disabledCmdsAlternativeMsg)
-
+	disabledCommands := newDisableCommands(disabledCmds, disabledCmdsExtraInfo)
 	for _, c := range cmd.Commands() {
-		if dCmds.isDisabledByName(c.Name()) {
+		if disabledCommands[c.Name()] != nil && disabledCommands[c.Name()].disabled {
 			cmd.RemoveCommand(c)
-			cmd.AddCommand(disabledCmd(c, disabledCmdsMsg, dCmds.getAlternativeByName(c.Name())))
+			cmd.AddCommand(disabledCmd(c, disabledCmdsMsg, disabledCommands[c.Name()].extraInfo))
 		}
 	}
 }
