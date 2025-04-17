@@ -29,7 +29,6 @@ const (
 
 type disabledCommand struct {
 	name      string
-	disabled  bool
 	extraInfo string
 }
 
@@ -42,8 +41,7 @@ func newDisableCommands(buildDisableCmds, buildExtraInfo string) map[string]*dis
 	// Adding disabled commands into the map
 	for _, c := range cmds {
 		commands[c] = &disabledCommand{
-			name:     c,
-			disabled: true,
+			name: c,
 		}
 	}
 
@@ -57,8 +55,8 @@ func newDisableCommands(buildDisableCmds, buildExtraInfo string) map[string]*dis
 	return commands
 }
 
-// disabledCmd is used to set and return a command as disabled.
-func disabledCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Command {
+// disableCmd is used to set and return a command as disabled.
+func disableCmd(cmd *cobra.Command, message, extraInfo string) *cobra.Command {
 	cmdName := cmd.Name()
 
 	msg := fmt.Sprintf("`%s` %s", cmdName, defaultDisabledCmdsMsg)
@@ -67,8 +65,8 @@ func disabledCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Comm
 		msg = fmt.Sprintf("`%s` %s", cmdName, message)
 	}
 
-	if len(alternativeMsg) > 0 {
-		msg = fmt.Sprintf("%s. Alternative: %s", msg, alternativeMsg)
+	if len(extraInfo) > 0 {
+		msg = fmt.Sprintf("%s. Info: %s", msg, extraInfo)
 	}
 
 	return &cobra.Command{
@@ -81,12 +79,12 @@ func disabledCmd(cmd *cobra.Command, message, alternativeMsg string) *cobra.Comm
 }
 
 // disableCmds disables all the flagged "disabled" commands.
-func disableCmds(cmd *cobra.Command) {
+func disableCmds(root *cobra.Command) {
 	disabledCommands := newDisableCommands(disabledCmds, disabledCmdsExtraInfo)
-	for _, c := range cmd.Commands() {
-		if disabledCommands[c.Name()] != nil && disabledCommands[c.Name()].disabled {
-			cmd.RemoveCommand(c)
-			cmd.AddCommand(disabledCmd(c, disabledCmdsMsg, disabledCommands[c.Name()].extraInfo))
+	for _, childCmd := range root.Commands() {
+		if cmd, disabled := disabledCommands[childCmd.Name()]; disabled {
+			root.RemoveCommand(childCmd)
+			root.AddCommand(disableCmd(childCmd, disabledCmdsMsg, cmd.extraInfo))
 		}
 	}
 }
