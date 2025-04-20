@@ -50,7 +50,7 @@ spec:
     spec:
       containers:
       - name: ratings
-        image: quay.io/sail-dev/examples-bookinfo-ratings-v1:1.20.2
+        image: quay.io/sail-dev/examples-bookinfo-ratings-v1:1.20.3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9080
