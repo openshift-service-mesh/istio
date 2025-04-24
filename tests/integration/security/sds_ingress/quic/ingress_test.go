@@ -18,6 +18,7 @@
 package quic
 
 import (
+	"strings"
 	"testing"
 
 	"istio.io/istio/pkg/test/framework"
@@ -78,8 +79,11 @@ func TestTlsGatewaysWithQUIC(t *testing.T) {
 		NewTest(t).
 		RequiresSingleCluster().
 		Run(func(t framework.TestContext) {
-			// FIXME: https://issues.redhat.com/browse/OSSM-1282
-			t.Skip("https://github.com/istio/istio/issues/0")
+			err := ingressutil.WaitForIngressQUICService(t, inst.Settings().SystemNamespace)
+			if err != nil && strings.Contains(err.Error(), "the QUIC mixed service is not supported") {
+				t.Skip("the QUIC mixed service is not supported - ", err)
+			}
+
 			t.NewSubTest("tcp").Run(func(t framework.TestContext) {
 				ingressutil.RunTestMultiTLSGateways(t, inst, namespace.Future(&echo1NS))
 			})
@@ -98,8 +102,11 @@ func TestMtlsGatewaysWithQUIC(t *testing.T) {
 		NewTest(t).
 		RequiresSingleCluster().
 		Run(func(t framework.TestContext) {
-			// FIXME: https://issues.redhat.com/browse/OSSM-1282
-			t.Skip("https://github.com/istio/istio/issues/0")
+			err := ingressutil.WaitForIngressQUICService(t, inst.Settings().SystemNamespace)
+			if err != nil && strings.Contains(err.Error(), "the QUIC mixed service is not supported") {
+				t.Skip("the QUIC mixed service is not supported - ", err)
+			}
+
 			t.NewSubTest("tcp").Run(func(t framework.TestContext) {
 				ingressutil.RunTestMultiTLSGateways(t, inst, namespace.Future(&echo1NS))
 			})
