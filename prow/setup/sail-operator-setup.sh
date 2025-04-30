@@ -71,7 +71,10 @@ CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
 # get istio version from versions.yaml
 VERSION_FILE="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/pkg/istioversion/versions.yaml"
 if [ -z "${ISTIO_VERSION:-}" ]; then
-  ISTIO_VERSION="$(curl -s "$VERSION_FILE" | grep -E 'name: v[0-9]+\.[0-9]+' | sed -E 's/.*(v[0-9]+\.[0-9]+).*/\1/' | sort -Vr | head -n1)-latest"
+  ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
+    grep -E 'name: v[0-9]+\.[0-9]+-latest' | \
+    sed -E 's/.*(v[0-9]+\.[0-9]+)-latest.*/\1/' | \
+    sort -Vr | head -n1)-latest"
 fi
   
 NAMESPACE="${NAMESPACE:-istio-system}"
