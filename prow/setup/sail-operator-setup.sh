@@ -146,16 +146,6 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured tracing for Zipkin."
 
-  elif [[ "$WORKDIR" == *"telemetry-tracing-otelcollector"* ]]; then
-  # Workaround until https://issues.redhat.com/browse/OSSM-10480 fixed
-    yq eval 'del(.spec.values.pilot.envVarFrom)' -i "$WORKDIR/$SAIL_IOP_FILE"
-    otel_cred="$(kubectl -n "$NAMESPACE" get secret otel-credentials -o jsonpath='{.data.bearer-token}' | base64 -d)"
-    CRED="$otel_cred" yq eval '
-      .spec.values.pilot.env.OTEL_GRPC_AUTHORIZATION = env(CRED) |
-      .spec.values.pilot.env.OTEL_GRPC_AUTHORIZATION style="double"
-    ' -i "$WORKDIR/$SAIL_IOP_FILE"
-    echo "Configured tracing for OtelCollector."
-
   elif [[ "$WORKDIR" == *"pilot-"* ]]; then
     # Fix for TestTraffic/dns/a/ tests
     yq eval '
