@@ -146,6 +146,16 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
 
 # Append sail operator setup script to base command
 if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
+    # Remove timeout 60m 
+    for i in "${!base_cmd[@]}"; do
+        if [[ "${base_cmd[$i]}" == "-timeout="* ]]; then
+            unset 'base_cmd[i]'
+        fi
+    done
+
+    base_cmd+=("-timeout=120m")
+
+    # Add sail operator setup script
     SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
     base_cmd+=("--istio.test.kube.deploy=false")
     base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
