@@ -219,7 +219,7 @@ base_cmd+=("--istio.test.kube.helm.values=${helm_values}")
 
 # Append sail operator setup script to base command
 if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
-    # Remove timeout 60m
+    # Remove timeout 60m 
     for i in "${!base_cmd[@]}"; do
         if [[ "${base_cmd[$i]}" == "-timeout="* ]]; then
             unset 'base_cmd[i]'
