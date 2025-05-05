@@ -128,7 +128,7 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured tracing for Zipkin."
 
-  elif [[ "$WORKDIR" == *"-pilot-/"* ]]; then
+  elif [[ "$WORKDIR" == *"pilot-"* ]]; then
     # Fix for TestTraffic/dns/a/ tests
     yq eval '
       .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"
