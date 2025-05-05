@@ -42,7 +42,7 @@ type Gateway struct {
 }
 
 func (g Gateway) ResourceName() string {
-	return config.NamespacedName(g.Config).Name
+	return config.NamespacedName(g.Config).String()
 }
 
 func (g Gateway) Equals(other Gateway) bool {
@@ -104,8 +104,9 @@ func GatewayCollection(
 			server, programmed := buildListener(ctx, secrets, grants, namespaces, obj, status, l, i, controllerName)
 
 			servers = append(servers, server)
-			if controllerName == constants.ManagedGatewayMeshController {
-				// Waypoint doesn't actually convert the routes to VirtualServices
+			if controllerName == constants.ManagedGatewayMeshController || controllerName == constants.ManagedGatewayEastWestController {
+				// Waypoint and ambient e/w don't actually convert the routes to VirtualServices
+				// TODO: Maybe E/W gateway should for non 15008 ports for backwards compat?
 				continue
 			}
 			meta := parentMeta(obj, &l.Name)
@@ -218,7 +219,7 @@ func (p RouteParents) fetch(ctx krt.HandlerContext, pk parentKey) []*parentInfo 
 func BuildRouteParents(
 	gateways krt.Collection[Gateway],
 ) RouteParents {
-	idx := krt.NewIndex(gateways, func(o Gateway) []parentKey {
+	idx := krt.NewIndex(gateways, "parent", func(o Gateway) []parentKey {
 		return []parentKey{o.parent}
 	})
 	return RouteParents{
