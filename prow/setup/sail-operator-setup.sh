@@ -206,28 +206,17 @@ function cleanup_istio() {
   echo "Starting Istio cleanup..."
   TIMEOUT_DURATION="120s"
   
-  echo "Deleting IstioCNI resources from namespace $ISTIOCNI_NAMESPACE..."
-  kubectl delete istiocni --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  echo "Deleting Istio resources from namespace $ISTIOCNI_NAMESPACE..."
+  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $ISTIOCNI_NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --force --grace-period=0 --wait=true
   }
 
-  echo "Deleting ZTunnel resources from namespace $ZTUNNEL_NAMESPACE..."
-  kubectl delete ztunnel --all -n "$ZTUNNEL_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
-    echo "Normal delete failed for $ZTUNNEL_NAMESPACE or timed out, applying force delete..."
-    kubectl delete all --all -n "$ZTUNNEL_NAMESPACE" --force --grace-period=0 --wait=true
-  }
-
   echo "Deleting Istio resources from namespace $NAMESPACE..."
-  kubectl delete istio --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  kubectl delete all --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$NAMESPACE" --force --grace-period=0 --wait=true
   }
-
-  echo "Delete Istio, IstioCNI and Ztunnel namespaces"
-  kubectl delete namespace "$ISTIOCNI_NAMESPACE" || true
-  kubectl delete namespace "$ZTUNNEL_NAMESPACE" || true
-  kubectl delete namespace "$NAMESPACE" || true
 
   echo "Cleanup completed successfully."
 }
