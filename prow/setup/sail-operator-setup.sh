@@ -177,13 +177,25 @@ function install_gateways(){
   echo "Gateways created."
 }
 
-function cleanup_istio(){
-  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE"
-  kubectl delete all --all -n "$NAMESPACE"
-  kubectl delete istios.sailoperator.io --all --all-namespaces --wait=true
-  kubectl get clusterrole | grep istio | awk '{print $1}' | xargs kubectl delete clusterrole
-  kubectl get clusterrolebinding | grep istio | awk '{print $1}' | xargs kubectl delete clusterrolebinding
-  echo "Cleanup completed."
+function cleanup_istio() {
+  set -euo pipefail
+
+  echo "Starting Istio cleanup..."
+  TIMEOUT_DURATION="120s"
+  
+  echo "Deleting Istio resources from namespace $ISTIOCNI_NAMESPACE..."
+  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+    echo "Normal delete failed for $ISTIOCNI_NAMESPACE or timed out, applying force delete..."
+    kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --force --grace-period=0 --wait=true
+  }
+
+  echo "Deleting Istio resources from namespace $NAMESPACE..."
+  kubectl delete all --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+    echo "Normal delete failed for $NAMESPACE or timed out, applying force delete..."
+    kubectl delete all --all -n "$NAMESPACE" --force --grace-period=0 --wait=true
+  }
+
+  echo "Cleanup completed successfully."
 }
 
 if [ "$1" = "install" ]; then
