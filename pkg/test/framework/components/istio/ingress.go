@@ -108,8 +108,11 @@ func (c *ingressImpl) getAddressesInner(port int) ([]string, []int, error) {
 		// Check and wait for resolvable ingress DNS name. Skip if IP.
 		if err == nil && completed {
 			hostPorts, ok := rawAddrs.([]any)
-			if !ok || len(hostPorts) == 0 {
-				return rawAddrs, completed, err
+			if !ok {
+				return nil, false, fmt.Errorf("expected []any from getRemoteServiceAddresses, got %T", rawAddrs)
+			}
+			if len(hostPorts) == 0 {
+				return rawAddrs, completed, nil
 			}
 			v, ok := hostPorts[0].(string)
 			if !ok {
@@ -121,7 +124,7 @@ func (c *ingressImpl) getAddressesInner(port int) ([]string, []int, error) {
 				return rawAddrs, completed, err
 			}
 			if _, lookupErr := net.LookupHost(host); lookupErr != nil {
-				scopes.Framework.Infof("waiting for DNS to resolve for host %q", host)
+				scopes.Framework.Infof("waiting for DNS to resolve for host %q: %v", host, lookupErr)
 				return nil, false, fmt.Errorf("the DNS for %q not ready: %v", host, lookupErr)
 			}
 		}
@@ -142,17 +145,19 @@ func (c *ingressImpl) getAddressesInner(port int) ([]string, []int, error) {
 		case string:
 			host, portStr, err := net.SplitHostPort(v)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("invalid address %q: %v", v, err)
 			}
 			mappedPort, err := strconv.Atoi(portStr)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("invalid port %q in address %q: %v", portStr, v, err)
 			}
 			addrs = append(addrs, host)
 			ports = append(ports, mappedPort)
 		case netip.AddrPort:
 			addrs = append(addrs, v.Addr().String())
 			ports = append(ports, int(v.Port()))
+		default:
+			scopes.Framework.Warnf("unknown address format: %T", v)
 		}
 	}
 	if len(addrs) > 0 {
