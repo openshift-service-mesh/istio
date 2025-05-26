@@ -31,6 +31,8 @@ INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
 CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
+TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
+AMBIENT="${AMBIENT:="false"}"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -137,11 +139,20 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.work_dir=${ARTIFACTS_DIR}"
           "--istio.test.skipTProxy=true"
           "--istio.test.skipVM=true"
-          "--istio.test.kube.helm.values=global.platform=openshift"
           "--istio.test.istio.enableCNI=true"
           "--istio.test.hub=${HUB}"
           "--istio.test.tag=${TAG}"
           "--istio.test.openshift")
+
+helm_values="global.platform=openshift"
+
+# If ambient mode executed, add "ambient" profile and args
+if [ "${AMBIENT}" == "true" ]; then
+    base_cmd+=("--istio.test.ambient")
+    helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
+fi
+
+base_cmd+=("--istio.test.kube.helm.values=${helm_values}")
 
 # Append sail operator setup script to base command
 if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
