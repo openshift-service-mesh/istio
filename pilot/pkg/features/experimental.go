@@ -136,6 +136,10 @@ var (
 
 	EnableAlphaGatewayAPIName = "PILOT_ENABLE_ALPHA_GATEWAY_API"
 	EnableAlphaGatewayAPI     = env.Register(EnableAlphaGatewayAPIName, false,
+	EnableGatewayAPICopyLabelsAnnotations = env.Register("PILOT_ENABLE_GATEWAY_API_COPY_LABELS_ANNOTATIONS", true,
+		"If this is set to false, istiod will not copy any attributes from the Gateway resource onto its related Deployment resources.").Get()
+
+	EnableAlphaGatewayAPI = env.Register("PILOT_ENABLE_ALPHA_GATEWAY_API", false,
 		"If this is set to true, support for alpha APIs in the Kubernetes gateway-api (github.com/kubernetes-sigs/gateway-api) will "+
 			" be enabled. In addition to this being enabled, the gateway-api CRDs need to be installed.").Get()
 
@@ -198,4 +202,10 @@ var (
 
 	UnifiedSidecarScoping = env.Register("PILOT_UNIFIED_SIDECAR_SCOPE", true,
 		"If true, unified SidecarScope creation will be used. This is only intended as a temporary feature flag for backwards compatibility.").Get()
+
+	CACertConfigMapName = env.Register("PILOT_CA_CERT_CONFIGMAP", "istio-ca-root-cert",
+		"The name of the ConfigMap that stores the Root CA Certificate that is used by istiod").Get()
+
+	EnableGatewayAPICACertOnly = env.Register("PILOT_ENABLE_GATEWAY_API_CA_CERT_ONLY", false,
+		"If true, only namespaces containing a Gateway API Gateway will have the CA Bundle ConfigMap injected").Get()
 )
