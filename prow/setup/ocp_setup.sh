@@ -136,7 +136,7 @@ spec:
   sourceNamespace: openshift-marketplace' | oc apply -f -
 
   # Check operator Phase is Succeeded
-timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until [ "$(oc get csv -n metallb-system | awk "/metallb-operator/ {print \$NF}")" == "Succeeded" ]; do sleep 5; done && echo "The MetalLB operator has been installed."'
+timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c "until [ $(oc get csv -n metallb-system | awk '/metallb-operator/ {print \$NF}') == 'Succeeded' ]; do sleep 5; done && echo 'The MetalLB operator has been installed.'"
 
   # Create MetalLB CR
   echo '
@@ -147,7 +147,7 @@ metadata:
   namespace: metallb-system' | oc apply -f -
 
   # Check MetalLB controller is running
-timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until oc get pods -n metallb-system --no-headers | grep controller | grep "Running"; do sleep 5; done && echo "The MetalLB controller is running."'
+timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c "until oc get pods -n metallb-system --no-headers | grep controller | grep 'Running'; do sleep 5; done && echo 'The MetalLB controller is running.'"
 
   # Get Nodes Internal IP by using: kubectl get nodes -l node-role.kubernetes.io/worker -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
   NODE_IPS=$(oc get nodes -l node-role.kubernetes.io/worker -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' ',')
