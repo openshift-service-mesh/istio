@@ -275,6 +275,12 @@ var (
 			" (e.g., my-service.my-ns.svc.cluster.local.) to the domains"+
 			" list for VirtualHost entries.",
 	).Get()
+
+	EnableProxyFindPodByIP = env.Register("ENABLE_PROXY_FIND_POD_BY_IP", false,
+		"If enabled, the pod controller will allow finding pods matching proxies by IP if it fails to find them by name.").Get()
+
+	EnableLazySidecarEvaluation = env.Register("ENABLE_LAZY_SIDECAR_EVALUATION", true,
+		"If enabled, pilot will only compute sidecar resources when actually used").Get()
 )
 
 // UnsafeFeaturesEnabled returns true if any unsafe features are enabled.
