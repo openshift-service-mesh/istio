@@ -67,10 +67,10 @@ func NewGatewayCAController(kubeClient kube.Client, caBundleWatcher *keycertbund
 
 	c.configmaps = kclient.NewFiltered[*v1.ConfigMap](kubeClient, kclient.Filter{
 		FieldSelector: "metadata.name=" + CACertNamespaceConfigMap,
-		ObjectFilter:  kube.FilterIfEnhancedFilteringEnabled(kubeClient),
+		ObjectFilter:  kubeClient.ObjectFilter(),
 	})
 	c.gateways = kclient.NewFiltered[*gateway.Gateway](kubeClient, kclient.Filter{
-		ObjectFilter: kube.FilterIfEnhancedFilteringEnabled(kubeClient),
+		ObjectFilter: kubeClient.ObjectFilter(),
 	})
 	c.configmaps.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
 
