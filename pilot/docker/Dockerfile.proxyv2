@@ -6,7 +6,7 @@ ARG proxy_version
 ARG SIDECAR=envoy
 
 # hadolint ignore=DL3039,DL3041
-RUN dnf -y install iptables iproute openssl-3.0.7 && \
+RUN dnf -y install iptables iproute openssl-3.0.7 libatomic && \
     dnf -y clean all
 
 RUN ln -s /lib64/libssl.so.3.0.7 /lib64/libssl.so && \
