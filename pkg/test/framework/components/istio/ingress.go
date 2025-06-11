@@ -48,7 +48,7 @@ const (
 )
 
 var (
-	getAddressTimeout = retry.Timeout(3 * time.Minute)
+	getAddressTimeout = retry.Timeout(5 * time.Minute)
 	getAddressDelay   = retry.BackoffDelay(500 * time.Millisecond)
 
 	_ ingress.Instance = &ingressImpl{}
