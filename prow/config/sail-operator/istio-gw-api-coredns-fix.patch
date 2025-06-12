@@ -16,7 +16,7 @@ index 8bcade301e..4a70d7fc23 100644
  				Client:                   c,
  				Clientset:                gatewayConformanceInputs.Client.Kube(),
  				ClientOptions:            clientOptions,
-@@ -111,6 +113,6 @@ func TestGatewayConformance(t *testing.T) {
+@@ -111,7 +112,7 @@ func TestGatewayConformance(t *testing.T) {
  				GatewayClassName:         "istio",
  				Debug:                    scopes.Framework.DebugEnabled(),
  				CleanupBaseResources:     gatewayConformanceInputs.Cleanup,
@@ -24,6 +24,7 @@ index 8bcade301e..4a70d7fc23 100644
 +				ManifestFS:               []fs.FS{os.DirFS("testdata"), &conformance.Manifests},
  				SupportedFeatures:        features.SetsToNamesSet(supportedFeatures),
  				SkipTests:                maps.Keys(skippedTests),
+ 				UsableNetworkAddresses:   []v1.GatewayAddress{{Value: "infra-backend-v1.gateway-conformance-infra.svc.cluster.local", Type: &hostnameType}},
 diff --git a/tests/integration/pilot/testdata/gateway-conformance-manifests.yaml b/tests/integration/pilot/testdata/gateway-conformance-manifests.yaml
 new file mode 100644
 index 0000000000..d78c853007

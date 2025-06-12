@@ -35,7 +35,6 @@ INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
-DEPLOY_GATEWAY_API="false"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -154,28 +153,6 @@ echo "Running integration tests"
 # Set gcr.io as mirror to docker.io/istio to be able to get images in downstream tests.
 if [ "${TEST_HUB}" == "docker.io/istio" ]; then
     addGcrMirror
-fi
-
-# Check OCP version
-if ! OCP_VERSION_FULL=$(oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null); then
-    echo "Failed to detect OpenShift version. Are you connected to a cluster?"
-    exit 1
-fi
-OCP_VERSION_MINOR=$(echo "$OCP_VERSION_FULL" | cut -d. -f2)
-
-# Compare versions
-version_ge() {
-    # Returns 0 if $1 >= $2
-    [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]
-}
-
-# Starting from OCP 4.19, Gateway API CRDs comes pre-installed and could not be modified by the user.
-# So for OCP version 4.19 and above, we're not deploying GW API CRDs.
-if version_ge "$OCP_VERSION_MINOR" "19"; then
-    echo "Openshift version 4.19 or above. Gateway API CRDs comes pre-installed with the cluster."
-else
-    echo "Openshift version below 4.19. Deploying Gateway API CRDs."
-    DEPLOY_GATEWAY_API="true"
 fi
 
 # Set up test command and parameters
