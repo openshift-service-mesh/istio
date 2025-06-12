@@ -113,6 +113,33 @@ items:
 ' | oc apply -f -
 }
 
+# Set gcr.io as mirror to docker.io/istio to be able to get images in downstream tests.
+function addGcrMirror(){
+  oc apply -f - <<__EOF__
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: docker-images-from-gcr
+spec:
+  imageDigestMirrors:
+  - mirrors:
+    - mirror.gcr.io
+    source: docker.io
+    mirrorSourcePolicy: NeverContactSource
+---
+apiVersion: config.openshift.io/v1
+kind: ImageTagMirrorSet
+metadata:
+  name: docker-images-from-gcr
+spec:
+  imageTagMirrors:
+  - mirrors:
+    - mirror.gcr.io
+    source: docker.io
+    mirrorSourcePolicy: NeverContactSource
+__EOF__
+}
+
 # Deploy MetalLB in the OCP cluster and configure IP address pool
 function deployMetalLB() {
   # Create the metallb-system namespace
