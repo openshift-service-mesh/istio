@@ -293,7 +293,8 @@ go-gen:
 	@PATH="${PATH}":/tmp/bin go generate ./...
 
 refresh-goldens:
-	REFRESH_GOLDEN=true go test -v ${GOBUILDFLAGS} \
+	cat /proc/sys/kernel/unprivileged_userns_clone
+	REFRESH_GOLDEN=true go test ${GOBUILDFLAGS} \
 		./cni/pkg/iptables/...
 
 update-golden: refresh-goldens
