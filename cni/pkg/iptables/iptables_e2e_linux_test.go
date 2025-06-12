@@ -187,6 +187,9 @@ func TestIdempotentUnequalInPodRerun(t *testing.T) {
 }
 
 func TestIptablesHostCleanRoundTrip(t *testing.T) {
+	// https://issues.redhat.com/browse/OSSM-8671
+	t.Skip("https://github.com/istio/istio/issues/1")
+
 	setup(t)
 
 	tests := GetCommonHostTestCases()

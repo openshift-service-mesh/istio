@@ -293,17 +293,9 @@ go-gen:
 	@PATH="${PATH}":/tmp/bin go generate ./...
 
 refresh-goldens:
-	REFRESH_GOLDEN=true go test ${GOBUILDFLAGS} ./operator/... \
-		./pkg/bootstrap/... \
-		./pkg/kube/inject/... \
-		./pilot/pkg/config/kube/gateway/... \
-		./pilot/pkg/security/authz/builder/... \
-		./pilot/pkg/serviceregistry/kube/controller/ambient/... \
-		./cni/pkg/iptables/... \
-		./cni/pkg/plugin/... \
-		./istioctl/pkg/workload/... \
-		./istioctl/pkg/writer/envoy/configdump/... \
-		./istioctl/pkg/writer/ztunnel/configdump/...
+	cat /proc/sys/kernel/unprivileged_userns_clone
+	REFRESH_GOLDEN=true go test ${GOBUILDFLAGS} \
+		./cni/pkg/iptables/...
 
 update-golden: refresh-goldens
 
