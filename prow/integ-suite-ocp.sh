@@ -34,6 +34,7 @@ CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
+TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -98,13 +99,13 @@ elif [ "${INSTALL_METALLB}" != "true" ] && [ "${SKIP_SETUP}" != "true" ]; then
     # Build and push the images to the internal registry
     build_images
 
+    # Install Sail Operator
+    if [ "${INSTALL_SAIL_OPERATOR}" == "true" ]; then
+        deploy_operator
+    fi
+
 else
     echo "Skipping the setup"
-fi
-
-# Install Sail Operator
-if [ "${INSTALL_SAIL_OPERATOR}" == "true" ]; then
-    deploy_operator
 fi
 
 # Check if the test run should be skipped
@@ -118,8 +119,10 @@ fi
 # Run the integration tests
 echo "Running integration tests"
 
-# Set the HUB to the internal registry svc URL to avoid the need to authenticate to pull images
-HUB="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"
+# Set gcr.io as mirror to docker.io/istio to be able to get images in downstream tests.
+if [ "${TEST_HUB}" == "docker.io/istio" ]; then
+    addGcrMirror
+fi
 
 # Set up test command and parameters
 setup_junit_report() {
@@ -141,7 +144,7 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.skipTProxy=true"
           "--istio.test.skipVM=true"
           "--istio.test.istio.enableCNI=true"
-          "--istio.test.hub=${HUB}"
+          "--istio.test.hub=${TEST_HUB}"
           "--istio.test.tag=${TAG}"
           "--istio.test.openshift")
 
