@@ -18,6 +18,7 @@
 package quic
 
 import (
+	"strings"
 	"testing"
 
 	"istio.io/istio/pkg/test/framework"
