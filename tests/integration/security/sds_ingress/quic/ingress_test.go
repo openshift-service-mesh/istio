@@ -78,6 +78,8 @@ func TestTlsGatewaysWithQUIC(t *testing.T) {
 		NewTest(t).
 		RequiresSingleCluster().
 		Run(func(t framework.TestContext) {
+			// FIXME: https://issues.redhat.com/browse/OSSM-1282
+			t.Skip("https://github.com/istio/istio/issues/0")
 			t.NewSubTest("tcp").Run(func(t framework.TestContext) {
 				ingressutil.RunTestMultiTLSGateways(t, inst, namespace.Future(&echo1NS))
 			})
@@ -96,6 +98,8 @@ func TestMtlsGatewaysWithQUIC(t *testing.T) {
 		NewTest(t).
 		RequiresSingleCluster().
 		Run(func(t framework.TestContext) {
+			// FIXME: https://issues.redhat.com/browse/OSSM-1282
+			t.Skip("https://github.com/istio/istio/issues/0")
 			t.NewSubTest("tcp").Run(func(t framework.TestContext) {
 				ingressutil.RunTestMultiTLSGateways(t, inst, namespace.Future(&echo1NS))
 			})

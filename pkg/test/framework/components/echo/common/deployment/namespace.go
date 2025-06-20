@@ -74,6 +74,9 @@ type EchoNamespace struct {
 	Sotw echo.Instances
 	// All echo apps in this namespace
 	All echo.Services
+
+	// Common prefix for Service names
+	ServiceNamePrefix string
 }
 
 func (n EchoNamespace) build(b deployment.Builder, cfg Config) deployment.Builder {
@@ -99,16 +102,16 @@ func (n *EchoNamespace) loadValues(t resource.Context, echos echo.Instances, d *
 		n.D = match.ServiceName(echo.NamespacedName{Name: DSvc, Namespace: ns}).GetMatches(echos)
 		n.E = match.ServiceName(echo.NamespacedName{Name: ESvc, Namespace: ns}).GetMatches(echos)
 	}
-	n.Tproxy = match.ServiceName(echo.NamespacedName{Name: TproxySvc, Namespace: ns}).GetMatches(echos)
-	n.Headless = match.ServiceName(echo.NamespacedName{Name: HeadlessSvc, Namespace: ns}).GetMatches(echos)
-	n.StatefulSet = match.ServiceName(echo.NamespacedName{Name: StatefulSetSvc, Namespace: ns}).GetMatches(echos)
-	n.Naked = match.ServiceName(echo.NamespacedName{Name: NakedSvc, Namespace: ns}).GetMatches(echos)
-	n.ProxylessGRPC = match.ServiceName(echo.NamespacedName{Name: ProxylessGRPCSvc, Namespace: ns}).GetMatches(echos)
+	n.Tproxy = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + TproxySvc, Namespace: ns}).GetMatches(echos)
+	n.Headless = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + HeadlessSvc, Namespace: ns}).GetMatches(echos)
+	n.StatefulSet = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + StatefulSetSvc, Namespace: ns}).GetMatches(echos)
+	n.Naked = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + NakedSvc, Namespace: ns}).GetMatches(echos)
+	n.ProxylessGRPC = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + ProxylessGRPCSvc, Namespace: ns}).GetMatches(echos)
 	if !t.Settings().Skip(echo.VM) {
-		n.VM = match.ServiceName(echo.NamespacedName{Name: VMSvc, Namespace: ns}).GetMatches(echos)
+		n.VM = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + VMSvc, Namespace: ns}).GetMatches(echos)
 	}
 	if !t.Settings().Skip(echo.Sotw) {
-		n.Sotw = match.ServiceName(echo.NamespacedName{Name: SotwSvc, Namespace: ns}).GetMatches(echos)
+		n.Sotw = match.ServiceName(echo.NamespacedName{Name: n.ServiceNamePrefix + SotwSvc, Namespace: ns}).GetMatches(echos)
 	}
 
 	namespaces, err := namespace.GetAll(t)
