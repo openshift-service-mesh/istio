@@ -45,6 +45,7 @@ import (
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	crdvalidation "istio.io/istio/pkg/config/crd"
+	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/schema/gvr"
 	"istio.io/istio/pkg/kube"
@@ -104,6 +105,29 @@ var services = []*model.Service{
 		Ports:    ports,
 		Hostname: "httpbin.default.svc.domain.suffix",
 	},
+	{
+		Attributes: model.ServiceAttributes{
+			Namespace: "default",
+			Labels: map[string]string{
+				InferencePoolExtensionRefSvc:  "ext-proc-svc",
+				InferencePoolExtensionRefPort: "9002",
+			},
+		},
+		Ports:    ports,
+		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", firstValue(InferencePoolServiceName("infpool-gen")))),
+	},
+	{
+		Attributes: model.ServiceAttributes{
+			Namespace: "default",
+			Labels: map[string]string{
+				InferencePoolExtensionRefSvc:  "ext-proc-svc-2",
+				InferencePoolExtensionRefPort: "9002",
+			},
+		},
+		Ports:    ports,
+		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", firstValue(InferencePoolServiceName("infpool-gen2")))),
+	},
+
 	{
 		Attributes: model.ServiceAttributes{
 			Namespace: "apple",
@@ -653,6 +677,7 @@ func setupClientCRDs(t *testing.T, kc kube.CLIClient) {
 		gvr.ServiceEntry,
 		gvr.XBackendTrafficPolicy,
 		gvr.BackendTLSPolicy,
+		gvr.InferencePool,
 	} {
 		clienttest.MakeCRDWithAnnotations(t, kc, crd, map[string]string{
 			consts.BundleVersionAnnotation: "v1.1.0",
@@ -1642,4 +1667,8 @@ func kubernetesObjectsFromString(s string) ([]runtime.Object, error) {
 		objects = append(objects, o)
 	}
 	return objects, nil
+}
+
+func firstValue[T, U any](val T, _ U) T {
+	return val
 }
