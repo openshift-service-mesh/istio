@@ -141,7 +141,6 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.ci"
           "--istio.test.pullpolicy=IfNotPresent"
           "--istio.test.work_dir=${ARTIFACTS_DIR}"
-          "--istio.test.skipTProxy=true"
           "--istio.test.skipVM=true"
           "--istio.test.istio.enableCNI=true"
           "--istio.test.hub=${TEST_HUB}"
