@@ -518,6 +518,7 @@ func TranslateRoute(
 		out.TypedPerFilterConfig[wellknown.HTTPExternalProcessing] = protoconv.MessageToAny(&extproc.ExtProcPerRoute{
 			Override: &extproc.ExtProcPerRoute_Overrides{
 				Overrides: &extproc.ExtProcOverrides{
+					FailureModeAllow: &wrapperspb.BoolValue{Value: infPoolRouteRuleCfg.FailureModeAllow},
 					GrpcService: &core.GrpcService{
 						TargetSpecifier: &core.GrpcService_EnvoyGrpc_{
 							EnvoyGrpc: &core.GrpcService_EnvoyGrpc{
