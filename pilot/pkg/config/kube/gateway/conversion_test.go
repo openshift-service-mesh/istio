@@ -579,6 +579,12 @@ func TestConvertResources(t *testing.T) {
 				"istio-system/^not-allowed-echo-",
 			),
 		},
+		{
+			name: "reference-policy-inferencepool",
+			validationIgnorer: crdvalidation.NewValidationIgnorer(
+				"istio-system/^backend-not-allowed-",
+			),
+		},
 		{name: "serviceentry"},
 		{name: "eastwest"},
 		{name: "eastwest-tlsoption"},
