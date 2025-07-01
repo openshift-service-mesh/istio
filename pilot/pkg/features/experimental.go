@@ -207,7 +207,6 @@ var (
 	EnableGatewayAPICACertOnly = env.Register("PILOT_ENABLE_GATEWAY_API_CA_CERT_ONLY", false,
 		"If true, only namespaces containing a Gateway API Gateway will have the CA Bundle ConfigMap injected").Get()
 
-	// If the version of this is merged to main - it should be false by default.
-	SupportGatewayAPIInferenceExtension = env.Register("SUPPORT_GATEWAY_API_INFERENCE_EXTENSION", true,
-		"If true, support gateway inference extensions apis").Get()
+	SupportGatewayAPIInferenceExtension = env.Register("SUPPORT_GATEWAY_API_INFERENCE_EXTENSION", false,
+		"If true, support gateway inference extension routing apis").Get()
 )
