@@ -46,6 +46,27 @@ func TestRender(t *testing.T) {
 			chartName:   "gateway",
 			diffSelect:  "Deployment:*:istio-ingress",
 		},
+		{
+			desc:        "istiod-pdb",
+			releaseName: "istiod",
+			namespace:   "istio-system",
+			chartName:   "istio-control/istio-discovery",
+			diffSelect:  "PodDisruptionBudget:*:istiod",
+		},
+		{
+			desc:        "istiod-pdb-max-unavailable",
+			releaseName: "istiod",
+			namespace:   "istio-system",
+			chartName:   "istio-control/istio-discovery",
+			diffSelect:  "PodDisruptionBudget:*:istiod",
+		},
+		{
+			desc:        "istiod-pdb-unhealthy-pod-eviction-policy",
+			releaseName: "istiod",
+			namespace:   "istio-system",
+			chartName:   "istio-control/istio-discovery",
+			diffSelect:  "PodDisruptionBudget:*:istiod",
+		},
 	}
 
 	for _, tc := range cases {
