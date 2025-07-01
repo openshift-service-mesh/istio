@@ -214,12 +214,6 @@ if [ "$1" = "install" ]; then
   install_istio || { echo "Failed to install Istio"; exit 1; }
   install_validatingwebhook || { echo "Failed to install validatingwebhook"; exit 1; }
   install_gateways || { echo "Failed to install gateways"; exit 1; }
-  #We need to patch istio gw api if istio version is before v1.26.0 Because the fix which lets execute GatewayConformance test on OCP
-  #is introduced in  istio v1.26.0 https://github.com/kubernetes-sigs/gateway-api/pull/3389. This patch is introduced as workaround to run the tests
-  if [ "$(printf '%s\n' "$MINOR_VERSION" "v1.26.0" | sort -V | head -n1)" = "$MINOR_VERSION" ] && [ "$MINOR_VERSION" != "v1.26.0" ]; then
-    echo "ISTIO_VERSION "$ISTIO_VERSION" is before v1.26.0 patching istio gateway coredns"
-    git apply "${PROW}"/config/sail-operator/istio-gw-api-coredns-fix.patch
-  fi
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
     echo "Skipping cleanup because SKIP_CLEANUP is set to true."
