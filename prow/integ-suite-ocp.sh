@@ -35,6 +35,7 @@ INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
+DEPLOY_GATEWAY_API="false"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -124,6 +125,28 @@ if [ "${TEST_HUB}" == "docker.io/istio" ]; then
     addGcrMirror
 fi
 
+# Check OCP version
+if ! OCP_VERSION_FULL=$(oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null); then
+    echo "Failed to detect OpenShift version. Are you connected to a cluster?"
+    exit 1
+fi
+OCP_VERSION_MINOR=$(echo "$OCP_VERSION_FULL" | cut -d. -f2)
+
+# Compare versions
+version_ge() {
+    # Returns 0 if $1 >= $2
+    [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]
+}
+
+# Starting from OCP 4.19, Gateway API CRDs comes pre-installed and could not be modified by the user.
+# So for OCP version 4.19 and above, we're not deploying GW API CRDs.
+if version_ge "$OCP_VERSION_MINOR" "19"; then
+    echo "Openshift version 4.19 or above. Gateway API CRDs comes pre-installed with the cluster."
+else
+    echo "Openshift version below 4.19. Deploying Gateway API CRDs."
+    DEPLOY_GATEWAY_API="true"
+fi
+
 # Set up test command and parameters
 setup_junit_report() {
     export ISTIO_BIN="${GOPATH}/bin"
@@ -146,6 +169,7 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.istio.enableCNI=true"
           "--istio.test.hub=${TEST_HUB}"
           "--istio.test.tag=${TAG}"
+          "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
           "--istio.test.openshift")
 
 helm_values="global.platform=openshift"
@@ -154,6 +178,15 @@ helm_values="global.platform=openshift"
 if [ "${AMBIENT}" == "true" ]; then
     base_cmd+=("--istio.test.ambient")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
+
+    # Set local gateway mode for Ambient execution
+    oc patch networks.operator.openshift.io cluster --type=merge \
+        -p '{"spec":{"defaultNetwork":{"ovnKubernetesConfig":{"gatewayConfig":{"routingViaHost": true}}}}}'
+    routing_via_host=$(oc get networks.operator.openshift.io cluster -o jsonpath={.spec.defaultNetwork.ovnKubernetesConfig.gatewayConfig.routingViaHost})
+    if [ "${routing_via_host}" != "true" ]; then
+        echo "Unable to set local gateway mode for Ambient execution"
+        exit 1
+    fi
 fi
 
 base_cmd+=("--istio.test.kube.helm.values=${helm_values}")
