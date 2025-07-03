@@ -57,6 +57,7 @@ const (
 	// * Other types use "prioritized leader election", which isn't implemented for Lease
 	GatewayDeploymentController = "istio-gateway-deployment"
 	GatewayCAController         = "istio-gateway-ca"
+	InferencePoolController     = "istio-gateway-inferencepool"
 	NodeUntaintController       = "istio-node-untaint"
 	IPAutoallocateController    = "istio-ip-autoallocate"
 )

@@ -65,7 +65,7 @@ func GatewayCollection(
 	krt.Collection[Gateway],
 ) {
 	statusCol, gw := krt.NewStatusManyCollection(gateways, func(ctx krt.HandlerContext, obj *gateway.Gateway) (*gateway.GatewayStatus, []Gateway) {
-		// We currently depend on service discovery information not know to krt; mark we depend on it.
+		// We currently depend on service discovery information not known to krt; mark we depend on it.
 		context := gatewayContext.Get(ctx).Load()
 		if context == nil {
 			return nil, nil
@@ -218,7 +218,7 @@ func (p RouteParents) fetch(ctx krt.HandlerContext, pk parentKey) []*parentInfo 
 func BuildRouteParents(
 	gateways krt.Collection[Gateway],
 ) RouteParents {
-	idx := krt.NewIndex(gateways, func(o Gateway) []parentKey {
+	idx := krt.NewIndex(gateways, "parent", func(o Gateway) []parentKey {
 		return []parentKey{o.parent}
 	})
 	return RouteParents{
