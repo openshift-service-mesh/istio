@@ -620,7 +620,10 @@ message GlobalConfig {
 
   // Select a custom name for istiod's CA Root Cert ConfigMap.
   string trustBundleName = 73;
-  // The next available key is 74
+
+  // Settings related to Kubernetes NetworkPolicy.
+  NetworkPolicyConfig networkPolicy = 75;
+  // The next available key is 76
 }
 
 // Configuration for Security Token Service (STS) server.
@@ -1461,4 +1464,10 @@ message WaypointConfig {
   //
   // See https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   repeated k8s.io.api.core.v1.Toleration toleration = 5;
+}
+
+// Configuration for NetworkPolicy
+message NetworkPolicyConfig {
+  // Controls whether default NetworkPolicy resources will be created.
+  google.protobuf.BoolValue enabled = 1;
 }
