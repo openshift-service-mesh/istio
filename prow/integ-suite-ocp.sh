@@ -187,6 +187,16 @@ base_cmd=(
 
 helm_values="global.platform=openshift"
 
+# Gateway Conformance Test related modifications
+if [ "${TEST_SUITE}" == "pilot" ]; then
+    # Until OCP 4.19 default CRDs has https://github.com/kubernetes-sigs/gateway-api/pull/3389 we need following patch
+    git apply --verbose --reject --whitespace=fix --ignore-space-change ./prow/config/sail-operator/istio-gw-api-coredns-fix.patch
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+fi
+
 # If ambient mode executed, add "ambient" profile and args
 if [ "${AMBIENT}" == "true" ]; then
     base_cmd+=("--istio.test.ambient")
