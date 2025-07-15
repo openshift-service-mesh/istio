@@ -34,6 +34,7 @@ INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
 DEPLOY_GATEWAY_API="false"
+TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -98,13 +99,13 @@ elif [ "${INSTALL_METALLB}" != "true" ] && [ "${SKIP_SETUP}" != "true" ]; then
     # Build and push the images to the internal registry
     build_images
 
+    # Install Sail Operator
+    if [ "${INSTALL_SAIL_OPERATOR}" == "true" ]; then
+        deploy_operator
+    fi
+
 else
     echo "Skipping the setup"
-fi
-
-# Install Sail Operator
-if [ "${INSTALL_SAIL_OPERATOR}" == "true" ]; then
-    deploy_operator
 fi
 
 # Check if the test run should be skipped
@@ -118,8 +119,10 @@ fi
 # Run the integration tests
 echo "Running integration tests"
 
-# Set the HUB to the internal registry svc URL to avoid the need to authenticate to pull images
-HUB="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"
+# Set gcr.io as mirror to docker.io/istio to be able to get images in downstream tests.
+if [ "${TEST_HUB}" == "docker.io/istio" ]; then
+    addGcrMirror
+fi
 
 # Check OCP version
 if ! OCP_VERSION_FULL=$(oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null); then
@@ -163,12 +166,22 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.skipTProxy=true"
           "--istio.test.skipVM=true"
           "--istio.test.istio.enableCNI=true"
-          "--istio.test.hub=${HUB}"
+          "--istio.test.hub=${TEST_HUB}"
           "--istio.test.tag=${TAG}"
           "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
           "--istio.test.openshift")
 
 helm_values="global.platform=openshift"
+
+# Gateway Conformance Test related modifications
+if [ "${TEST_SUITE}" == "pilot" ]; then
+    # Until OCP 4.19 default CRDs has https://github.com/kubernetes-sigs/gateway-api/pull/3389 we need following patch
+    git apply --verbose --reject --whitespace=fix --ignore-space-change ./prow/config/sail-operator/istio-gw-api-coredns-fix.patch
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+fi
 
 # If ambient mode executed, add "ambient" profile and args
 if [ "${AMBIENT}" == "true" ]; then
