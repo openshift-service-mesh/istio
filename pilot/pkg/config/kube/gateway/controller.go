@@ -218,7 +218,7 @@ func NewController(
 		inputs.BackendTrafficPolicy = krt.NewStaticCollection[*gatewayx.XBackendTrafficPolicy](nil, nil, opts.WithName("disable/XBackendTrafficPolicy")...)
 	}
 
-	if features.SupportGatewayAPIInferenceExtension {
+	if features.EnableGatewayAPIInferenceExtension {
 		inputs.InferencePools = buildClient[*inferencev1alpha2.InferencePool](c, kc, gvr.InferencePool, opts, "informer/InferencePools")
 	} else {
 		// If disabled, still build a collection but make it always empty
@@ -279,7 +279,7 @@ func NewController(
 		controllers.WithReconciler(c.reconcileShadowService(svcClient, InferencePools, inputs.Services)),
 		controllers.WithMaxAttempts(5))
 
-	if features.SupportGatewayAPIInferenceExtension {
+	if features.EnableGatewayAPIInferenceExtension {
 		registerStatus(c, InferencePoolStatus, GetStatus)
 	}
 
