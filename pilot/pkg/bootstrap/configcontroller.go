@@ -373,7 +373,7 @@ func (s *Server) makeKubeConfigController(args *PilotArgs) *crdclient.Client {
 	if features.EnableGatewayAPI {
 		schemas = collections.PilotGatewayAPI()
 	}
-	if features.SupportGatewayAPIInferenceExtension {
+	if features.EnableGatewayAPIInferenceExtension {
 		schemas = schemas.Add(collections.InferencePool)
 	}
 	schemas = schemas.Add(collections.Ingress)
