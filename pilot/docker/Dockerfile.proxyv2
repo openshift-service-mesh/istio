@@ -1,4 +1,4 @@
-FROM rockylinux/rockylinux:9.4
+FROM quay.io/fedora/fedora:41
 
 WORKDIR /
 
@@ -6,11 +6,11 @@ ARG proxy_version
 ARG SIDECAR=envoy
 
 # hadolint ignore=DL3039,DL3041
-RUN dnf -y install iptables iproute openssl-3.0.7 libatomic && \
+RUN dnf -y install iptables iproute libatomic openssl-libs && \
     dnf -y clean all
 
-RUN ln -s /lib64/libssl.so.3.0.7 /lib64/libssl.so && \
-    ln -s /lib64/libcrypto.so.3.0.7 /lib64/libcrypto.so
+RUN ln -s /lib64/libssl.so.3 /lib64/libssl.so && \
+    ln -s /lib64/libcrypto.so.3 /lib64/libcrypto.so
 
 # Copy Envoy bootstrap templates used by pilot-agent
 COPY envoy_bootstrap.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
