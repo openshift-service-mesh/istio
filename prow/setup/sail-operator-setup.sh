@@ -146,6 +146,16 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured tracing for Zipkin."
 
+  elif [[ "$WORKDIR" == *"telemetry-tracing-otelcollector"* ]]; then
+  # Workaround until https://issues.redhat.com/browse/OSSM-10480 fixed
+    yq eval 'del(.spec.values.pilot.envVarFrom)' -i "$WORKDIR/$SAIL_IOP_FILE"
+    otel_cred="$(kubectl -n "$NAMESPACE" get secret otel-credentials -o jsonpath='{.data.bearer-token}' | base64 -d)"
+    CRED="$otel_cred" yq eval '
+      .spec.values.pilot.env.OTEL_GRPC_AUTHORIZATION = env(CRED) |
+      .spec.values.pilot.env.OTEL_GRPC_AUTHORIZATION style="double"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured tracing for OtelCollector."
+
   elif [[ "$WORKDIR" == *"pilot-"* ]]; then
     # Fix for TestTraffic/dns/a/ tests
     yq eval '
@@ -191,23 +201,28 @@ function cleanup_istio() {
   echo "Starting Istio cleanup..."
   TIMEOUT_DURATION="120s"
   
-  echo "Deleting Istio resources from namespace $ISTIOCNI_NAMESPACE..."
-  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  echo "Deleting IstioCNI resources from namespace $ISTIOCNI_NAMESPACE..."
+  kubectl delete istiocni --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $ISTIOCNI_NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --force --grace-period=0 --wait=true
   }
 
   echo "Deleting ZTunnel resources from namespace $ZTUNNEL_NAMESPACE..."
-  kubectl delete all --all -n "$ZTUNNEL_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  kubectl delete ztunnel --all -n "$ZTUNNEL_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $ZTUNNEL_NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n $ZTUNNEL_NAMESPACE --force --grace-period=0 --wait=true
   }
 
   echo "Deleting Istio resources from namespace $NAMESPACE..."
-  kubectl delete all --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  kubectl delete istio --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$NAMESPACE" --force --grace-period=0 --wait=true
   }
+
+  echo "Delete Istio, IstioCNI and Ztunnel namespaces"
+  kubectl delete namespace "$ISTIOCNI_NAMESPACE" || true
+  kubectl delete namespace "$ZTUNNEL_NAMESPACE" || true
+  kubectl delete namespace "$NAMESPACE" || true
 
   echo "Cleanup completed successfully."
 }
