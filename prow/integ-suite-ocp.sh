@@ -27,6 +27,7 @@ export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export TAG="${TAG:-"istio-testing"}"
 SKIP_TESTS="${2:-""}"
 TEST_SUITE="${1:-"pilot"}"
+SKIP_SUITE="${3:-""}"
 SKIP_SETUP="${SKIP_SETUP:-"false"}"
 INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
@@ -159,8 +160,16 @@ setup_junit_report() {
     echo "JUNIT_REPORT: ${JUNIT_REPORT}"
 }
 
+
+# Prepare go list expression for skipping suites
+if [[ -n "$SKIP_SUITE" ]]; then
+  TEST_PATH=$(go list -tags=integ ./tests/integration/${TEST_SUITE}/... | grep -vE "/(${SKIP_SUITE})$")
+else
+  TEST_PATH="./tests/integration/${TEST_SUITE}/..."
+fi
+
 # Build the base command and store it in an array
-base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "./tests/integration/${TEST_SUITE}/..."
+base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "${TEST_PATH}"
           "--istio.test.ci"
           "--istio.test.pullpolicy=IfNotPresent"
           "--istio.test.work_dir=${ARTIFACTS_DIR}"
