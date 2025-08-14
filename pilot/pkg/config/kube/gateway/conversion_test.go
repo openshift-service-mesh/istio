@@ -588,6 +588,7 @@ func TestConvertResources(t *testing.T) {
 			),
 		},
 		{name: "serviceentry"},
+		{name: "status"},
 		{name: "eastwest"},
 		{name: "eastwest-tlsoption"},
 		{name: "eastwest-labelport"},
