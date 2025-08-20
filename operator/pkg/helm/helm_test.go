@@ -47,7 +47,7 @@ func TestRender(t *testing.T) {
 			diffSelect:  "Deployment:*:istio-ingress",
 		},
 		{
-			desc:        "istiod-pdb",
+			desc:        "istiod-pdb-default",
 			releaseName: "istiod",
 			namespace:   "istio-system",
 			chartName:   "istio-control/istio-discovery",
@@ -66,6 +66,41 @@ func TestRender(t *testing.T) {
 			namespace:   "istio-system",
 			chartName:   "istio-control/istio-discovery",
 			diffSelect:  "PodDisruptionBudget:*:istiod",
+		},
+		{
+			desc:        "istiod-pdb-2replicas",
+			releaseName: "istiod",
+			namespace:   "istio-system",
+			chartName:   "istio-control/istio-discovery",
+			diffSelect:  "PodDisruptionBudget:*:istiod",
+		},
+		{
+			desc:        "istiod-pdb-autoscaleMin2",
+			releaseName: "istiod",
+			namespace:   "istio-system",
+			chartName:   "istio-control/istio-discovery",
+			diffSelect:  "PodDisruptionBudget:*:istiod",
+		},
+		{
+			desc:        "gateway-pdb-default",
+			releaseName: "istio-ingress",
+			namespace:   "istio-ingress",
+			chartName:   "gateway",
+			diffSelect:  "PodDisruptionBudget:*:istio-ingress",
+		},
+		{
+			desc:        "gateway-pdb-2replicas",
+			releaseName: "istio-ingress",
+			namespace:   "istio-ingress",
+			chartName:   "gateway",
+			diffSelect:  "PodDisruptionBudget:*:istio-ingress",
+		},
+		{
+			desc:        "gateway-pdb-autoscaleMin2",
+			releaseName: "istio-ingress",
+			namespace:   "istio-ingress",
+			chartName:   "gateway",
+			diffSelect:  "PodDisruptionBudget:*:istio-ingress",
 		},
 	}
 
