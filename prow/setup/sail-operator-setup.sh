@@ -137,7 +137,16 @@ function install_istio(){
 
 function patch_config() {
   # adds some control plane values that are mandatory and not available in iop.yaml
-  if [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
+  if [[ "$WORKDIR" == *"telemetry-api"* ]]; then
+    # The patch for the telemetry api tests is added because PR
+    # https://github.com/istio-ecosystem/sail-operator/pull/1186
+    # adds "accessLogFile" globally and telemetry api needs it to be null.
+    yq eval '
+      del(.spec.values.meshConfig.accessLogFile)
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured telemetry api."
+
+  elif [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
   # Workaround until https://github.com/istio/istio/pull/55408 is merged
     yq eval '
       .spec.values.meshConfig.enableTracing = true |
