@@ -24,6 +24,7 @@ import (
 	"istio.io/api/label"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pilot/pkg/keycertbundle"
+	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
 	"istio.io/istio/pkg/kube/kclient"
@@ -115,7 +116,12 @@ func (gwc *GatewayCAController) reconcileCACert(o types.NamespacedName) error {
 		Namespace: o.Namespace,
 		Labels:    configMapLabel,
 	}
-	return k8s.InsertDataToConfigMap(gwc.configmaps, meta, gwc.caBundleWatcher.GetCABundle())
+	return k8s.InsertDataToConfigMap(
+		gwc.configmaps,
+		meta,
+		constants.CACertNamespaceConfigMapDataName,
+		gwc.caBundleWatcher.GetCABundle(),
+	)
 }
 
 // On gateway change, update the config map.
