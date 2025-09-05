@@ -163,6 +163,7 @@ spec:
   sourceNamespace: openshift-marketplace' | oc apply -f -
 
   # Check operator Phase is Succeeded
+# shellcheck disable=SC2016
 timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until [ "$(oc get csv -n metallb-system | awk "/metallb-operator/ {print \$NF}")" == "Succeeded" ]; do sleep 5; done && echo "The MetalLB operator has been installed."'
 
   # Create MetalLB CR
