@@ -22,7 +22,6 @@
 WD=$(dirname "$0")
 ROOT=$(dirname "$WD")
 WD=$(cd "$WD"; pwd)
-TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export TAG="${TAG:-"istio-testing"}"
 SKIP_TESTS="${2:-""}"
@@ -163,7 +162,7 @@ setup_junit_report() {
 # Prepare go list expression for skipping suites
 if [[ -n "$SKIP_SUITE" ]]; then
   mapfile -t TEST_PATH < <(
-    go list -tags=integ ./tests/integration/${TEST_SUITE}/... |
+    go list -tags=integ "./tests/integration/${TEST_SUITE}/..." |
     grep -vE "/(${SKIP_SUITE})$"
   )
 else
@@ -205,7 +204,7 @@ if [ "${AMBIENT}" == "true" ]; then
     # Set local gateway mode for Ambient execution
     oc patch networks.operator.openshift.io cluster --type=merge \
         -p '{"spec":{"defaultNetwork":{"ovnKubernetesConfig":{"gatewayConfig":{"routingViaHost": true}}}}}'
-    routing_via_host=$(oc get networks.operator.openshift.io cluster -o jsonpath={.spec.defaultNetwork.ovnKubernetesConfig.gatewayConfig.routingViaHost})
+    routing_via_host=$(oc get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.gatewayConfig.routingViaHost}')
     if [ "${routing_via_host}" != "true" ]; then
         echo "Unable to set local gateway mode for Ambient execution"
         exit 1
