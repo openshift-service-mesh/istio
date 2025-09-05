@@ -1,0 +1,8 @@
+apiVersion: sailoperator.io/v1alpha1
+kind: ZTunnel
+metadata:
+  name: default
+spec:
+  namespace: ${ZTUNNEL_NAMESPACE}
+  version: ${ISTIO_VERSION}
+  profile: ambient
