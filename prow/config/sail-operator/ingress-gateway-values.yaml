@@ -2,9 +2,6 @@ platform: openshift
 autoscaling:
   enabled: false
 
-meshConfig:
-  accessLogFile: /dev/stdout
-
 service:
   ports:
     - port: 15021
