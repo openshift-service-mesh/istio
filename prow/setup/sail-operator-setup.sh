@@ -32,6 +32,8 @@ set -u
 set -x
 # fail if any command in the pipeline fails
 set -o pipefail
+# Show logs on error
+trap 'echo "❌ Script failed. Dumping log:"; echo "--------------------------------"; cat "$LOG_FILE"; echo "--------------------------------"; exit 1' ERR
 
 SKIP_CLEANUP="${SKIP_CLEANUP:-"false"}"
 
