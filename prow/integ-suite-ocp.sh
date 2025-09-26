@@ -241,6 +241,34 @@ if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
     setup_junit_report
     "${base_cmd[@]}" 2>&1 | tee >( "${JUNIT_REPORT}" > "${ARTIFACTS_DIR}/junit/junit.xml" )
     test_status=${PIPESTATUS[0]}
+
+elif [ "${TEST_OUTPUT_FORMAT}" == "gotestsum" ]; then
+    echo "Using gotestsum to run tests and generate junit report"
+    # Install gotestsum if not already available
+    if ! command -v gotestsum &>/dev/null; then
+        go install gotest.tools/gotestsum@latest
+        # Get Go binary path (prefer GOBIN, fallback to GOPATH/bin)
+        gobin=$(go env GOBIN 2>/dev/null)
+        if [ -z "$gobin" ]; then
+            gobin="$(go env GOPATH)/bin"
+        fi
+        export PATH="$gobin:$PATH"
+    fi
+
+    mkdir -p "${JUNIT_REPORT_DIR}"
+
+    gotestsum \
+      -f testname \
+      --junitfile-project-name istio \
+      --junitfile "${JUNIT_REPORT_DIR}/junit.xml" \
+      --rerun-fails \
+      --rerun-fails-max-failures=30 \
+      --packages "${TEST_PATH[@]}" \
+      --debug \
+      -- "${base_cmd[@]:5}"
+      
+    test_status=$?
+
 else
     "${base_cmd[@]}"
     test_status=$?
