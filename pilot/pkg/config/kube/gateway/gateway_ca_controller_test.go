@@ -153,3 +153,47 @@ func expectConfigMapNotExist(t *testing.T, configmaps kclient.Client[*v1.ConfigM
 		t.Fatalf("%s namespace should not have %s configmap.", ns, CACertNamespaceConfigMap)
 	}
 }
+
+func TestGatewayCAControllerForCrlConfigMap(t *testing.T) {
+	client := kube.NewFakeClient()
+	t.Cleanup(client.Shutdown)
+	watcher := keycertbundle.NewWatcher()
+	crlData := []byte("crl")
+	watcher.SetAndNotifyCACRL(crlData)
+	stop := test.NewStop(t)
+
+	nc := NewGatewayCAController(client, watcher, TestRevision)
+	client.RunAndWait(stop)
+	go nc.Run(stop)
+	retry.UntilOrFail(t, nc.queue.HasSynced)
+
+	expectedData := map[string]string{
+		constants.CACRLNamespaceConfigMapDataName: string(crlData),
+	}
+	createGateway(t, client.GatewayAPI(), "bar", "foo", map[string]string{label.IoIstioRev.Name: TestRevision})
+	expectConfigMap(t, nc.crlConfigmaps, CRLNamespaceConfigMap, "foo", expectedData)
+
+	// Make sure random configmap does not interfere
+	createConfigMap(t, client.Kube(), "not-crl-cm", "foo", "key")
+
+	newCrlData := []byte("new-crl")
+	watcher.SetAndNotifyCACRL(newCrlData)
+	newData := map[string]string{
+		constants.CACRLNamespaceConfigMapDataName: string(newCrlData),
+	}
+	expectConfigMap(t, nc.crlConfigmaps, CRLNamespaceConfigMap, "foo", newData)
+
+	deleteCrlConfigMap(t, client.Kube(), "foo")
+	expectConfigMap(t, nc.crlConfigmaps, CRLNamespaceConfigMap, "foo", newData)
+}
+
+func deleteCrlConfigMap(t *testing.T, client kubernetes.Interface, ns string) {
+	t.Helper()
+	_, err := client.CoreV1().ConfigMaps(ns).Get(context.TODO(), CRLNamespaceConfigMap, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.CoreV1().ConfigMaps(ns).Delete(context.TODO(), CRLNamespaceConfigMap, metav1.DeleteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+}
