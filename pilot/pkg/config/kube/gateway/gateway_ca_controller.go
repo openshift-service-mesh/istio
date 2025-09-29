@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"istio.io/api/label"
@@ -38,6 +39,9 @@ const (
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms
 	maxRetries = 5
+
+	// CRLNamespaceConfigMap is the name of the ConfigMap in each namespace storing the CRL of plugged in CA certificates.
+	CRLNamespaceConfigMap = "istio-ca-crl"
 )
 
 var (
@@ -53,8 +57,9 @@ type GatewayCAController struct {
 
 	queue controllers.Queue
 
-	gateways   kclient.Client[*gateway.Gateway]
-	configmaps kclient.Client[*v1.ConfigMap]
+	gateways      kclient.Client[*gateway.Gateway]
+	configmaps    kclient.Client[*v1.ConfigMap]
+	crlConfigmaps kclient.Client[*v1.ConfigMap]
 }
 
 // NewGatewayCAController returns a pointer to a newly constructed GatewayCAController instance.
@@ -63,7 +68,7 @@ func NewGatewayCAController(kubeClient kube.Client, caBundleWatcher *keycertbund
 		caBundleWatcher: caBundleWatcher,
 	}
 	c.queue = controllers.NewQueue("gateway ca controller",
-		controllers.WithReconciler(c.reconcileCACert),
+		controllers.WithReconciler(c.reconcileCACertAndCRL),
 		controllers.WithMaxAttempts(maxRetries))
 
 	c.configmaps = kclient.NewFiltered[*v1.ConfigMap](kubeClient, kclient.Filter{
@@ -78,18 +83,42 @@ func NewGatewayCAController(kubeClient kube.Client, caBundleWatcher *keycertbund
 	c.gateways.AddEventHandler(controllers.FilteredObjectSpecHandler(c.queue.AddObject, func(o controllers.Object) bool {
 		return o.GetLabels()[label.IoIstioRev.Name] == revision
 	}))
+
+	if features.EnableCACRL {
+		// set filtered client for crl configmap
+		c.crlConfigmaps = kclient.NewFiltered[*v1.ConfigMap](kubeClient, kclient.Filter{
+			FieldSelector: "metadata.name=" + CRLNamespaceConfigMap,
+			ObjectFilter:  kubeClient.ObjectFilter(),
+		})
+
+		// register crl configmap event handler
+		c.crlConfigmaps.AddEventHandler(controllers.ObjectHandler(c.queue.AddObject))
+	}
+
 	return c
 }
 
 // Run starts the GatewayCAController until a value is sent to stopCh.
 func (gwc *GatewayCAController) Run(stopCh <-chan struct{}) {
-	if !kube.WaitForCacheSync("gateway ca controller", stopCh, gwc.gateways.HasSynced, gwc.configmaps.HasSynced) {
-		return
+	if gwc.crlConfigmaps != nil {
+		if !kube.WaitForCacheSync("gateway ca controller", stopCh, gwc.gateways.HasSynced, gwc.configmaps.HasSynced, gwc.crlConfigmaps.HasSynced) {
+			gwc.queue.ShutDownEarly()
+			return
+		}
+	} else {
+		if !kube.WaitForCacheSync("gateway ca controller", stopCh, gwc.gateways.HasSynced, gwc.configmaps.HasSynced) {
+			gwc.queue.ShutDownEarly()
+			return
+		}
 	}
 
 	go gwc.startCaBundleWatcher(stopCh)
 	gwc.queue.Run(stopCh)
-	controllers.ShutdownAll(gwc.configmaps, gwc.gateways)
+	if gwc.crlConfigmaps != nil {
+		controllers.ShutdownAll(gwc.configmaps, gwc.gateways, gwc.crlConfigmaps)
+	} else {
+		controllers.ShutdownAll(gwc.configmaps, gwc.gateways)
+	}
 }
 
 // startCaBundleWatcher listens for updates to the CA bundle and update cm in each namespace
@@ -108,20 +137,44 @@ func (gwc *GatewayCAController) startCaBundleWatcher(stop <-chan struct{}) {
 	}
 }
 
-// reconcileCACert will reconcile the ca root cert configmap for the specified namespace
+// reconcileCACertAndCRL will reconcile the ca root cert and crl configmap for the specified namespace
 // If the configmap is not found, it will be created.
-func (gwc *GatewayCAController) reconcileCACert(o types.NamespacedName) error {
-	meta := metav1.ObjectMeta{
-		Name:      CACertNamespaceConfigMap,
-		Namespace: o.Namespace,
-		Labels:    configMapLabel,
+func (gwc *GatewayCAController) reconcileCACertAndCRL(o types.NamespacedName) error {
+	errs := []error{
+		// upsert root-cert configmap
+		k8s.InsertDataToConfigMap(
+			gwc.configmaps,
+			metav1.ObjectMeta{
+				Name:      CACertNamespaceConfigMap,
+				Namespace: o.Namespace,
+				Labels:    configMapLabel,
+			},
+			constants.CACertNamespaceConfigMapDataName,
+			gwc.caBundleWatcher.GetCABundle(),
+		),
 	}
-	return k8s.InsertDataToConfigMap(
-		gwc.configmaps,
-		meta,
-		constants.CACertNamespaceConfigMapDataName,
-		gwc.caBundleWatcher.GetCABundle(),
-	)
+
+	if features.EnableCACRL {
+		// upsert crl configmap
+		errs = append(
+			errs,
+			k8s.InsertDataToConfigMap(
+				gwc.crlConfigmaps,
+				metav1.ObjectMeta{
+					Name:      CRLNamespaceConfigMap,
+					Namespace: o.Namespace,
+					Labels:    configMapLabel,
+				},
+				constants.CACRLNamespaceConfigMapDataName,
+				gwc.caBundleWatcher.GetCRL(),
+			),
+		)
+	}
+
+	// Returns nil when there are no errors,
+	// the single error when there is exactly one,
+	// or a combined error when there are several.
+	return utilerrors.NewAggregate(errs)
 }
 
 // On gateway change, update the config map.
