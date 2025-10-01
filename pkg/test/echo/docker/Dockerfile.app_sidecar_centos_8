@@ -1,9 +1,32 @@
-ARG BASE_VERSION=latest
-ARG VM_IMAGE_NAME=rockylinux
-ARG VM_IMAGE_VERSION=9
-ARG ISTIO_BASE_REGISTRY=gcr.io/istio-release
+# ARG BASE_VERSION=latest
+# ARG VM_IMAGE_NAME=rockylinux/rockylinux
+# ARG VM_IMAGE_VERSION=9.4
+# ARG ISTIO_BASE_REGISTRY=gcr.io/istio-release
 
-FROM ${ISTIO_BASE_REGISTRY}/app_sidecar_base_${VM_IMAGE_NAME}_${VM_IMAGE_VERSION}:${BASE_VERSION}
+# FROM ${ISTIO_BASE_REGISTRY}/app_sidecar_base_${VM_IMAGE_NAME}_${VM_IMAGE_VERSION}:${BASE_VERSION}
+
+FROM quay.io/fedora/fedora:41
+
+# hadolint ignore=DL3005,DL3008,DL3033
+RUN yum install -y \
+    iptables \
+    iproute \
+    sudo \
+    nmap-ncat \
+    tcpdump \
+    procps \
+    conntrack \
+    net-tools \
+    ca-certificates \
+    hostname \
+    libatomic \
+    openssl-libs \
+    && update-ca-trust \
+    && yum clean all \
+    && rm -rf /var/cache/yum
+
+RUN ln -s /lib64/libssl.so.3 /lib64/libssl.so && \
+    ln -s /lib64/libcrypto.so.3 /lib64/libcrypto.so
 
 # Install the certs.
 COPY certs/                           /var/lib/istio/
