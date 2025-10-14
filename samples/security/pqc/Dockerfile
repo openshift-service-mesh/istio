@@ -45,5 +45,3 @@ RUN echo "activate = 1" >> /tmp/openssl.cnf
 RUN cp /tmp/openssl.cnf /etc/pki/tls/openssl.cnf
 USER 1000
 
-ENTRYPOINT ["/bin/bash"]
-
