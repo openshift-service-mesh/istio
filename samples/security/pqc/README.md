@@ -75,25 +75,25 @@
 
 1. Install control plane:
 
-    ```shell
-    oc apply -f - <<EOF
-    apiVersion: sailoperator.io/v1
-    kind: Istio
-    metadata:
-      name: default
-    spec:
-      version: v1.26.2
-      namespace: istio-system
-      updateStrategy:
-        type: InPlace
-      values:
-        meshConfig:
-          accessLogFile: /dev/stdout
-        pilot:
-          env:
-            COMPLIANCE_POLICY: "pqc"
-    EOF
-    ```
+   ```shell
+   oc apply -f - <<EOF
+   apiVersion: sailoperator.io/v1
+   kind: Istio
+   metadata:
+     name: default
+   spec:
+     version: v1.26.2
+     namespace: istio-system
+     updateStrategy:
+       type: InPlace
+     values:
+       meshConfig:
+         accessLogFile: /dev/stdout
+         tlsDefaults:
+           ecdhCurves:
+           - X25519MLKEM768
+   EOF
+   ```
 
 1. Generate certificates:
 
@@ -166,5 +166,21 @@
 
    ```shell
    oc label ns default istio-injection=enabled
-   kubectl apply -f https://raw.githubusercontent.com/openshift-service-mesh/istio/master/samples/httpbin/httpbin.yaml
+   oc apply -n default -f https://raw.githubusercontent.com/openshift-service-mesh/istio/master/samples/httpbin/httpbin.yaml
    ```
+
+1. Send a test request using PQC key exchange algorithm:
+
+   ```shell
+   INGRESS_ADDR=$(kubectl get svc pqc-gateway-istio -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+   docker run \
+     --network kind \
+     -v ./example_certs1/example.com.crt:/etc/example_certs1/example.com.crt \
+     --rm -it openquantumsafe/curl \
+     curl -vk \
+     --curves X25519MLKEM768 \
+     --cacert /etc/example_certs1/example.com.crt \
+     -H "Host: httpbin.example.com" \
+     "https://$INGRESS_ADDR:443/status/200"
+   ```
+
