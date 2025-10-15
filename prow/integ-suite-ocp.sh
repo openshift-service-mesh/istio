@@ -51,6 +51,37 @@ set -u
 # Print commands
 set -x
 
+check_cluster_operators() {
+  # Check if jq is installed
+  if ! command -v jq &> /dev/null; then
+    echo "ERROR: jq is required for the cluster operator health check. Please install jq."
+    exit 1
+  fi
+
+  local timeout_seconds=600 # 10 minutes
+  echo "Validating OpenShift cluster operators are stable..."
+  local end_time=$(( $(date +%s) + timeout_seconds ))
+
+  while [ "$(date +%s)" -lt $end_time ]; do
+    # This command uses jq to count operators that are not Available, or are Progressing, or are Degraded.
+    # A healthy cluster should have a count of 0.
+    local unstable_operators
+    unstable_operators=$(oc get clusteroperator -o json | jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length')
+
+    if [[ $unstable_operators -eq 0 ]]; then
+      echo "All cluster operators are stable."
+      return 0
+    fi
+
+    echo -n "."
+    sleep 15
+  done
+
+  echo "ERROR: Timeout reached. Not all cluster operators are stable."
+  oc get clusteroperator
+  exit 1
+}
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -202,7 +233,7 @@ base_cmd+=("--istio.test.kube.helm.values=${helm_values}")
 
 # Append sail operator setup script to base command
 if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
-    # Remove timeout 60m 
+    # Remove timeout 60m
     for i in "${!base_cmd[@]}"; do
         if [[ "${base_cmd[$i]}" == "-timeout="* ]]; then
             unset 'base_cmd[i]'
@@ -221,6 +252,9 @@ fi
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
 fi
+
+# Check cluster operators are stable before starting the tests
+check_cluster_operators
 
 # Execute the command and handle junit output
 if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
