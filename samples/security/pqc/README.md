@@ -159,11 +159,17 @@ Enabling post-quantum safe algorithms requires configuring [OQS provider](https:
 
 ## Verification steps
 
-1. Connect to the gateway with PQC-enabled client using `X25519MLKEM768` for key exchange - it should succeed:
+1. Get the gateway address depending on your LB provider:
 
    ```shell
    INGRESS_ADDR=$(kubectl get svc pqc-gateway-istio -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
    ```
+   ```shell
+   INGRESS_ADDR=$(kubectl get svc pqc-gateway-istio -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   ```
+
+1. Connect to the gateway with PQC-enabled client using `X25519MLKEM768` for key exchange - it should succeed:
+
    ```shell
    podman run --rm -it \
      -v ./certs/example.com.crt:/etc/certs/example.com.crt \
