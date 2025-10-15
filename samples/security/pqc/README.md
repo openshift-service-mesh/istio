@@ -1,4 +1,4 @@
-# OSSM 3 - PQC demo
+# Quantum-Safe Gateway
 
 ## Prerequisites
 
