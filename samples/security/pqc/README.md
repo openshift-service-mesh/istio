@@ -2,76 +2,64 @@
 
 ## Prerequisites
 
-1. Install OpenShift Service Mesh Operator 3.1.
-2. Install Gateway API CRDs.
+1. Install OpenShift Service Mesh Operator 3.1+.
+1. Install Gateway API CRDs (not required on OCP 4.19+).
 
-## Customize proxy image
+   ```shell
+   oc apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
+   ```
 
-1. Get pull secret from OCP:
+## Customize istio-proxy image
+
+OpenShift Service Mesh 3.1 does not deliver istio-proxy image with built-in support for PQC.
+Enabling post-quantum safe algorithms requires configuring [OQS provider](https://github.com/open-quantum-safe/oqs-provider) in the proxy container.
+
+1. Get pull secret from OCP and build the proxy image with OQS provider:
 
     ```shell
     oc get secret pull-secret -n openshift-config -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > /tmp/config.json
+    podman --config /tmp build -t localhost:5000/istio-system/istio-proxyv2-rhel9-oqs:1.26.2 .
     ```
 
-1. Pull istio-proxy 1.26.2:
+1. Configure permissions for pushing images to OCP image registry:
 
-    ```shell
-    docker --config /tmp pull registry.redhat.io/openshift-service-mesh/istio-proxyv2-rhel9@sha256:d518f3d1539f45e1253c5c9fa22062802804601d4998cd50344e476a3cc388fe
-    ```
+   ```shell
+   oc new-project istio-system
+   oc policy add-role-to-user system:image-pusher -z default -n istio-system
+   TOKEN=$(oc create token default -n istio-system)
+   ```
 
-1. Build a custom proxy with OQS provider:
+1. Create an image stream for custom istio-proxy and expose the registry:
 
-    ```shell
-    docker build -t localhost:5000/istio-system/istio-proxy-oqs:1.26.2 .
-    ```
+   ```shell
+   oc patch configs.imageregistry.operator.openshift.io/cluster --type=merge -p '{"spec":{"defaultRoute":true}}'
+   oc create imagestream istio-proxyv2-rhel9-oqs -n istio-system
+   ```
 
-1. Expose cluster registry to your local environment:
+1. Push the local image:
 
-    ```shell
-    oc port-forward -n openshift-image-registry svc/image-registry 5000:5000 &
-    ```
-
-1. Obtain a token from https://oauth-openshift.<your-cluster-domain>/oauth/token/request and login to the cluster registry:
-
-    ```shell
-    docker login -u kubeadmin localhost:5000
-    ```
-
-1. Alternatively, you can upload the image with the following command:
-
-    ```shell
-    docker login -u $(oc whoami) -p $(oc whoami -t) localhost:5000
-    ```
-
-1. Push the OQS-based proxy:
-
-    ```shell
-    oc new-project istio-system
-    docker push localhost:5000/istio-system/istio-proxy-oqs:1.26.2
-    ```
-
-1. Stop port-forwarding the registry API:
-
-    ```shell
-    kill %1
-    ```
+   ```shell
+   HOST=$(oc get route default-route -n openshift-image-registry -o jsonpath='{.spec.host}')
+   podman login --tls-verify=false -u default -p $TOKEN $HOST
+   podman push --tls-verify=false istio-proxyv2-rhel9-oqs:1.26.2 $HOST/istio-system/istio-proxyv2-rhel9-oqs:1.26.2
+   ```
 
 ## Install Service Mesh
 
 1. Install CNI:
 
-    ```shell
-    oc new-project istio-cni
-    oc apply -f - <<EOF
-    apiVersion: sailoperator.io/v1
-    kind: IstioCNI
-    metadata:
-      name: default
-    spec:
-      version: v1.26.2
-      namespace: istio-cni
-    EOF
-    ```
+   ```shell
+   oc new-project istio-cni
+   oc apply -f - <<EOF
+   apiVersion: sailoperator.io/v1
+   kind: IstioCNI
+   metadata:
+     name: default
+   spec:
+     version: v1.26.2
+     namespace: istio-cni
+   EOF
+   ```
 
 1. Install control plane:
 
@@ -98,20 +86,20 @@
 1. Generate certificates:
 
     ```shell
-    mkdir example_certs1
-    openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -subj '/O=example Inc./CN=example.com' -keyout example_certs1/example.com.key -out example_certs1/example.com.crt
-    openssl req -out example_certs1/httpbin.example.com.csr -newkey rsa:2048 -nodes -keyout example_certs1/httpbin.example.com.key -subj "/CN=httpbin.example.com/O=httpbin organization"
-    openssl x509 -req -sha256 -days 365 -CA example_certs1/example.com.crt -CAkey example_certs1/example.com.key -set_serial 0 -in example_certs1/httpbin.example.com.csr -out example_certs1/httpbin.example.com.crt
-    openssl req -out example_certs1/helloworld.example.com.csr -newkey rsa:2048 -nodes -keyout example_certs1/helloworld.example.com.key -subj "/CN=helloworld.example.com/O=helloworld organization"
-    openssl x509 -req -sha256 -days 365 -CA example_certs1/example.com.crt -CAkey example_certs1/example.com.key -set_serial 1 -in example_certs1/helloworld.example.com.csr -out example_certs1/helloworld.example.com.crt
+    mkdir certs
+    openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -subj '/O=example Inc./CN=example.com' -keyout certs/example.com.key -out certs/example.com.crt
+    openssl req -out certs/httpbin.example.com.csr -newkey rsa:2048 -nodes -keyout certs/httpbin.example.com.key -subj "/CN=httpbin.example.com/O=httpbin organization"
+    openssl x509 -req -sha256 -days 365 -CA certs/example.com.crt -CAkey certs/example.com.key -set_serial 0 -in certs/httpbin.example.com.csr -out certs/httpbin.example.com.crt
+    openssl req -out certs/helloworld.example.com.csr -newkey rsa:2048 -nodes -keyout certs/helloworld.example.com.key -subj "/CN=helloworld.example.com/O=helloworld organization"
+    openssl x509 -req -sha256 -days 365 -CA certs/example.com.crt -CAkey certs/example.com.key -set_serial 1 -in certs/helloworld.example.com.csr -out certs/helloworld.example.com.crt
     ```
 
 1. Create a secret for a gateway:
 
     ```shell
     oc create -n istio-system secret tls httpbin-credential \
-        --key=example_certs1/httpbin.example.com.key \
-        --cert=example_certs1/httpbin.example.com.crt
+        --key=certs/httpbin.example.com.key \
+        --cert=certs/httpbin.example.com.crt
     ```
 
 1. Deploy a Gateway:
@@ -124,7 +112,7 @@
      name: pqc-gateway
      namespace: istio-system
      annotations:
-       sidecar.istio.io/proxyImage: "image-registry.openshift-image-registry.svc:5000/istio-system/istio-proxy-oqs:1.26.2"
+       sidecar.istio.io/proxyImage: "image-registry.openshift-image-registry.svc:5000/istio-system/istio-proxyv2-rhel9-oqs:1.26.2"
    spec:
      gatewayClassName: istio
      listeners:
@@ -162,25 +150,41 @@
    EOF
    ```
 
-1. Deploy httpbin:
+1. Deploy the backend server:
 
    ```shell
    oc label ns default istio-injection=enabled
    oc apply -n default -f https://raw.githubusercontent.com/openshift-service-mesh/istio/master/samples/httpbin/httpbin.yaml
    ```
 
-1. Send a test request using PQC key exchange algorithm:
+## Verification steps
+
+1. Connect to the gateway with PQC-enabled client using `X25519MLKEM768` for key exchange - it should succeed:
 
    ```shell
    INGRESS_ADDR=$(kubectl get svc pqc-gateway-istio -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-   docker run \
-     --network kind \
-     -v ./example_certs1/example.com.crt:/etc/example_certs1/example.com.crt \
-     --rm -it openquantumsafe/curl \
-     curl -vk \
-     --curves X25519MLKEM768 \
-     --cacert /etc/example_certs1/example.com.crt \
+   ```
+   ```shell
+   podman run --rm -it \
+     -v ./certs/example.com.crt:/etc/certs/example.com.crt \
+     docker.io/openquantumsafe/curl \
+     curl -vk "https://$INGRESS_ADDR:443/headers" \
      -H "Host: httpbin.example.com" \
-     "https://$INGRESS_ADDR:443/status/200"
+     --curves X25519MLKEM768 \
+     --cacert /etc/certs/example.com.crt
    ```
 
+1. Connect to the gateway with `curl` without any PQC-specific algorithms - it should fail:
+
+   ```shell
+   curl -vk "https://$INGRESS_ADDR:443/headers" \
+     -H "Host: httpbin.example.com" \
+     --cacert ./certs/example.com.crt
+   ```
+   ```text
+   * TLSv1.3 (OUT), TLS handshake, Client hello (1):
+   * TLSv1.3 (IN), TLS alert, handshake failure (552):
+   * TLS connect error: error:0A000410:SSL routines::ssl/tls alert handshake failure
+   * closing connection #0
+   curl: (35) TLS connect error: error:0A000410:SSL routines::ssl/tls alert handshake failure
+   ```
