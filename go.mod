@@ -61,7 +61,7 @@ require (
 	github.com/quic-go/quic-go v0.51.0
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/spf13/cobra v1.9.1
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/pflag v1.0.7
 	github.com/spf13/viper v1.20.1
 	github.com/stoewer/go-strcase v1.3.0
 	github.com/stretchr/testify v1.10.0
@@ -94,8 +94,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.17.3
-	istio.io/api v1.27.0-beta.0.0.20250731082105-36763529c462
-	istio.io/client-go v1.27.0-beta.0.0.20250731082605-b098a6e566f4
+	istio.io/api v1.27.2-0.20251010085937-bc3692c751f3
+	istio.io/client-go v1.27.2-0.20251010090538-d3877427e89c
 	k8s.io/api v0.33.4
 	k8s.io/apiextensions-apiserver v0.33.4
 	k8s.io/apimachinery v0.33.4
@@ -103,7 +103,7 @@ require (
 	k8s.io/cli-runtime v0.33.3
 	k8s.io/client-go v0.33.4
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kubectl v0.33.0
+	k8s.io/kubectl v0.33.3
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/gateway-api v1.3.0
@@ -147,7 +147,7 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/google/btree v1.1.3 // indirect
@@ -222,7 +222,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/component-base v0.33.4 // indirect
-	k8s.io/component-helpers v0.33.0 // indirect
+	k8s.io/component-helpers v0.33.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.32.1 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect

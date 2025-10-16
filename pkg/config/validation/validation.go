@@ -75,8 +75,9 @@ var (
 	tchars               = "!#$%&'*+-.^_`|~" + "A-Z" + "a-z" + "0-9"
 	validHeaderNameRegex = regexp.MustCompile("^[" + tchars + "]+$")
 
-	validProbeHeaderNameRegex  = regexp.MustCompile("^[-A-Za-z0-9]+$")
-	validStrictHeaderNameRegex = validProbeHeaderNameRegex
+	validProbeHeaderNameRegex = regexp.MustCompile("^[-A-Za-z0-9]+$")
+	// This is kept as a semi-arbitrary set of allowed characters for backwards compatibility.
+	validStrictHeaderNameRegex = regexp.MustCompile("^[-_A-Za-z0-9]+$")
 )
 
 const (
@@ -1051,7 +1052,8 @@ func validateTrafficPolicy(configNamespace string, policy *networking.TrafficPol
 		return Validation{}
 	}
 	if policy.OutlierDetection == nil && policy.ConnectionPool == nil &&
-		policy.LoadBalancer == nil && policy.Tls == nil && policy.PortLevelSettings == nil && policy.Tunnel == nil && policy.ProxyProtocol == nil {
+		policy.LoadBalancer == nil && policy.Tls == nil && policy.PortLevelSettings == nil && policy.Tunnel == nil && policy.ProxyProtocol == nil &&
+		policy.RetryBudget == nil {
 		return WrapError(fmt.Errorf("traffic policy must have at least one field"))
 	}
 
