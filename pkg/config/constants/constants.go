@@ -136,6 +136,11 @@ const (
 	GatewaySemanticsGateway       = "gateway"
 	InternalServiceSemantics      = "internal.istio.io/service-semantics"
 	ServiceSemanticsInferencePool = "inferencepool"
+	// The service account name that gateway workloads are running at. Used to verify that
+	// only service accounts associated with gateway workloads can query secrets.
+	// Empty means any service account name within the namespace.
+	InternalServiceAccount = "internal.istio.io/service-account-name"
+
 	// ThirdPartyJwtPath is the default 3P token to authenticate with third party services
 	ThirdPartyJwtPath = "./var/run/secrets/tokens/istio-token"
 
