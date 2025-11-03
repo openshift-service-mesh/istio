@@ -76,6 +76,9 @@ const (
 	// DefaultNetworkGatewayPort is the port used by default for cross-network traffic if not otherwise specified
 	// by meshNetworks or "networking.istio.io/gatewayPort"
 	DefaultNetworkGatewayPort = 15443
+	// DefaultNetworkGatewayPort is the port used by default for cross-network traffic in ambient mode (when
+	// double-HBONE protocol is used for communication).
+	DefaultNetworkGatewayHBONEPort = 15008
 )
 
 var log = istiolog.RegisterScope("kube", "kubernetes service registry controller")
@@ -405,6 +408,9 @@ func (c *Controller) Cleanup() error {
 		c.opts.MeshNetworksWatcher.DeleteNetworksHandler(c.networksHandlerRegistration)
 	}
 
+	// Shutdown all the informer handlers
+	c.shutdownInformerHandlers()
+
 	return nil
 }
 
@@ -646,6 +652,14 @@ func (c *Controller) HasSynced() bool {
 	return c.queue.HasSynced()
 }
 
+func (c *Controller) shutdownInformerHandlers() {
+	c.namespaces.ShutdownHandlers()
+	c.services.ShutdownHandlers()
+	c.endpoints.slices.ShutdownHandlers()
+	c.pods.pods.ShutdownHandlers()
+	c.nodes.ShutdownHandlers()
+}
+
 func (c *Controller) informersSynced() bool {
 	return c.namespaces.HasSynced() &&
 		c.services.HasSynced() &&
@@ -750,7 +764,7 @@ func (c *Controller) getPodLocality(pod *v1.Pod) string {
 func (c *Controller) serviceInstancesFromWorkloadInstances(svc *model.Service, reqSvcPort int) []*model.ServiceInstance {
 	// Run through all the workload instances, select ones that match the service labels
 	// only if this is a kubernetes internal service and of ClientSideLB (eds) type
-	// as InstancesByPort is called by the aggregate controller. We dont want to include
+	// as InstancesByPort is called by the aggregate controller. We don't want to include
 	// workload instances for any other registry
 	workloadInstancesExist := !c.workloadInstancesIndex.Empty()
 	c.RLock()

@@ -176,6 +176,12 @@ func (cl *Client) Run(stop <-chan struct{}) {
 	}
 	<-stop
 	close(cl.stop)
+	// Cleanup handlers
+	for _, h := range cl.allKinds() {
+		for _, reg := range h.handlers {
+			reg.UnregisterHandler()
+		}
+	}
 	cl.logger.Infof("controller terminated")
 }
 
@@ -266,18 +272,6 @@ func (cl *Client) UpdateStatus(cfg config.Config) (string, error) {
 	}
 
 	meta, err := updateStatus(cl.client, cfg, getObjectMetadata(cfg))
-	if err != nil {
-		return "", err
-	}
-	return meta.GetResourceVersion(), nil
-}
-
-// Patch applies only the modifications made in the PatchFunc rather than doing a full replace. Useful to avoid
-// read-modify-write conflicts when there are many concurrent-writers to the same resource.
-func (cl *Client) Patch(orig config.Config, patchFn config.PatchFunc) (string, error) {
-	modified, patchType := patchFn(orig.DeepCopy())
-
-	meta, err := patch(cl.client, orig, getObjectMetadata(orig), modified, getObjectMetadata(modified), patchType)
 	if err != nil {
 		return "", err
 	}
