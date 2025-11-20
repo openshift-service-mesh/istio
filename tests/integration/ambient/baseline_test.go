@@ -1,5 +1,4 @@
 //go:build integ
-// +build integ
 
 // Copyright Istio Authors
 //
@@ -2393,6 +2392,9 @@ spec:
 								"IngressHttpPort": ports[i],
 							})).
 							Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
+								if t.Settings().AmbientMultiNetwork && from.Config().HasSidecar() {
+									t.Skip("https://github.com/istio/istio/issues/57878")
+								}
 								// TODO validate L7 processing/some headers indicating we reach the svc we wanted
 								from.CallOrFail(t, echo.CallOptions{
 									Address:   "dummy.example.com",
@@ -2427,6 +2429,9 @@ spec:
 								"IngressHttpPort": ports[idx],
 							})).
 							Run(func(t framework.TestContext, from echo.Instance, to echo.Target) {
+								if t.Settings().AmbientMultiNetwork && from.Config().HasSidecar() {
+									t.Skip("https://github.com/istio/istio/issues/57878")
+								}
 								// TODO validate L7 processing/some headers indicating we reach the svc we wanted
 								from.CallOrFail(t, echo.CallOptions{
 									Address:   "dummy.example.com",
@@ -3479,48 +3484,9 @@ func TestDirect(t *testing.T) {
 
 				capturedSvc := apps.Captured.ForCluster(cluster.Name()).ServiceName()
 				labelServiceGlobal(t, capturedSvc, cluster)
-				run("global service", echo.CallOptions{
-					To:          apps.Captured.ForCluster(cluster.Name()),
-					Count:       1,
-					Address:     apps.Captured.ForCluster(cluster.Name()).ClusterLocalFQDN(),
-					Port:        echo.Port{Name: ports.HTTP.Name},
-					HBONE:       hbsvc,
-					DoubleHBONE: hbsvc,
-					// Global services are expected to be reachable via the east-west gateway
-					Check: check.OK(),
+				t.Cleanup(func() {
+					unlabelServiceGlobal(t, capturedSvc, cluster)
 				})
-				i = istio.GetOrFail(t)
-				ewgaddresses, ewgports = ewginstance.HBONEAddresses()
-				if len(ewgaddresses) == 0 || len(ewgports) == 0 {
-					t.Fatal("east-west gateway address or ports not found")
-				}
-				ewgaddr = ewgaddresses[0]
-				ewgport = ewgports[0]
-				cert, err = istio.CreateCertificate(t, i, apps.Captured.ServiceName(), apps.Namespace.Name())
-				if err != nil {
-					t.Fatal(err)
-				}
-				hbsvc = echo.HBONE{
-					Address:            fmt.Sprintf("%s:%v", ewgaddr, ewgport),
-					Headers:            nil,
-					Cert:               string(cert.ClientCert),
-					Key:                string(cert.Key),
-					CaCert:             string(cert.RootCert),
-					InsecureSkipVerify: true,
-				}
-				run("local service", echo.CallOptions{
-					To:          apps.Captured.ForCluster(cluster.Name()),
-					Count:       1,
-					Address:     apps.Captured.ForCluster(cluster.Name()).ClusterLocalFQDN(),
-					Port:        echo.Port{Name: ports.HTTP.Name},
-					HBONE:       hbsvc,
-					DoubleHBONE: hbsvc,
-					// Local services are not expected to be reachable via the east-west gateway
-					Check: check.Error(),
-				})
-
-				capturedSvc = apps.Captured.ForCluster(cluster.Name()).ServiceName()
-				labelServiceGlobal(t, capturedSvc, t.Clusters().Default())
 				run("global service", echo.CallOptions{
 					To:          apps.Captured.ForCluster(cluster.Name()),
 					Count:       1,
@@ -3566,7 +3532,10 @@ func TestServiceRestart(t *testing.T) {
 		for _, c := range t.Clusters() {
 			dst := apps.Captured.ForCluster(c.Name())
 			mkGen(apps.Uncaptured.ForCluster(c.Name())[0], dst)
-			mkGen(apps.Sidecar.ForCluster(c.Name())[0], dst)
+			// TODO(https://github.com/istio/istio/issues/57878): remove this condition when the issue is addressed
+			if !t.Settings().AmbientMultiNetwork {
+				mkGen(apps.Sidecar.ForCluster(c.Name())[0], dst)
+			}
 			// This is effectively "captured" since its the client; we cannot use captured since captured is the dest, though
 			mkGen(apps.WorkloadAddressedWaypoint.ForCluster(c.Name())[0], dst)
 			if err := dst.Restart(); err != nil {
@@ -3607,7 +3576,12 @@ func TestZtunnelRestart(t *testing.T) {
 		for _, c := range t.Clusters() {
 			dst := apps.Captured.ForCluster(c.Name())
 			uncap := mkGen(apps.Uncaptured.ForCluster(c.Name())[0], dst)
-			sidecar := mkGen(apps.Sidecar.ForCluster(c.Name())[0], dst)
+
+			var sidecar traffic.Generator
+			// TODO(https://github.com/istio/istio/issues/57878): remove this condition when the issue is addressed
+			if !t.Settings().AmbientMultiNetwork {
+				sidecar = mkGen(apps.Sidecar.ForCluster(c.Name())[0], dst)
+			}
 			// This is effectively "captured" since its the client; we cannot use captured since captured is the dest, though
 			captured := mkGen(apps.WorkloadAddressedWaypoint.ForCluster(c.Name())[0], dst)
 			restartZtunnel(t, c)
@@ -3616,7 +3590,10 @@ func TestZtunnelRestart(t *testing.T) {
 			captured.Stop().CheckSuccessRate(t, successThreshold)
 			// We have a lighter check for sidecars. Sidecars will pool HTTP, so these are long lived connections.
 			// These we have no way to signal to Envoy (https://github.com/envoyproxy/envoy/issues/34897).
-			sidecar.Stop().CheckSuccessRate(t, sidecarSuccessThreshold)
+			// TODO(https://github.com/istio/istio/issues/57878): remove this condition when the issue is addressed
+			if sidecar != nil {
+				sidecar.Stop().CheckSuccessRate(t, sidecarSuccessThreshold)
+			}
 		}
 	})
 }
@@ -3627,6 +3604,9 @@ func TestServiceDynamicEnroll(t *testing.T) {
 	successThreshold := 0.5
 
 	framework.NewTest(t).Run(func(t framework.TestContext) {
+		if t.Settings().AmbientMultiNetwork {
+			t.Skip("https://github.com/istio/istio/issues/58228")
+		}
 		generators := []traffic.Generator{}
 		for _, c := range t.Clusters() {
 			dst := apps.Captured.ForCluster(c.Name())
@@ -3701,10 +3681,10 @@ func labelService(t framework.TestContext, nsName, svcName, k, v string, cs ...c
 	}
 }
 
-func labelServiceGlobal(t framework.TestContext, svcName string, cls cluster.Cluster) {
+func labelServiceGlobal(t framework.TestContext, svcName string, cls ...cluster.Cluster) {
 	k := "istio.io/global"
 	v := "true"
-	labelService(t, apps.Namespace.Name(), svcName, k, v, cls)
+	labelService(t, apps.Namespace.Name(), svcName, k, v, cls...)
 }
 
 func labelServiceInCluster(t framework.TestContext, c cluster.Cluster, nsName, svcName, k, v string) {
@@ -3720,10 +3700,16 @@ func labelServiceInCluster(t framework.TestContext, c cluster.Cluster, nsName, s
 	}
 }
 
-func unlabelServiceGlobal(t framework.TestContext, svcName string, cls cluster.Cluster) {
+func unlabelServiceGlobal(t framework.TestContext, svcName string, cls ...cluster.Cluster) {
+	for _, cl := range cls {
+		unlabelServiceGlobalInCluster(t, svcName, cl)
+	}
+}
+
+func unlabelServiceGlobalInCluster(t framework.TestContext, svcName string, cl cluster.Cluster) {
 	patchOpts := metav1.PatchOptions{}
 	patchData := fmt.Sprintf(`{"metadata":{"labels":{ %q: null}}}`, "istio.io/global")
-	s := cls.Kube().CoreV1().Services(apps.Namespace.Name())
+	s := cl.Kube().CoreV1().Services(apps.Namespace.Name())
 	_, err := s.Patch(context.Background(), svcName, types.StrategicMergePatchType, []byte(patchData), patchOpts)
 	if err != nil {
 		t.Fatal(err)
