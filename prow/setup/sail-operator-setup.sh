@@ -75,13 +75,32 @@ CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
 
 # get istio version from versions.yaml
 VERSION_FILE="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/pkg/istioversion/versions.yaml"
-if [ -z "${ISTIO_VERSION:-}" ]; then
-  ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
-    grep -E 'name: v[0-9]+\.[0-9]+-latest' | \
-    sed -E 's/.*(v[0-9]+\.[0-9]+)-latest.*/\1/' | \
-    sort -Vr | head -n1)-latest"
+if [ -n "${ISTIO_VERSION:-}" ]; then
+  echo "Using provided ISTIO_VERSION: $ISTIO_VERSION"
+else
+  if [ "$CONVERTER_BRANCH" = "main" ]; then
+    # If CONVERTER_BRANCH is main, change it to master and get the ref field
+    ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
+      grep -A 1 'name: master' | \
+      grep 'ref:' | \
+      sed -E 's/.*ref: (.*)/\1/' | \
+      head -n1)"
+  else
+    # Handle version stripping for CONVERTER_BRANCH like "release-1.28" -> "1.28"
+    if [[ "$CONVERTER_BRANCH" =~ ^release- ]]; then
+      # Strip "release-" prefix to get version (e.g., release-1.28 -> 1.28)
+      SEARCH_VERSION="${CONVERTER_BRANCH#release-}"
+    fi
+
+    # Look for the version with -latest suffix
+    ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
+      grep -E "name: v${SEARCH_VERSION}-latest" | \
+      sed -E "s/.*(v${SEARCH_VERSION}-latest).*/\1/" | \
+      head -n1)"
+  fi
+  echo "Using fetched ISTIO_VERSION: $ISTIO_VERSION"
 fi
-  
+
 NAMESPACE="${NAMESPACE:-istio-system}"
 ISTIOCNI_NAMESPACE="${ISTIOCNI_NAMESPACE:-istio-cni}"
 ZTUNNEL_NAMESPACE="${ZTUNNEL_NAMESPACE:-ztunnel}"
