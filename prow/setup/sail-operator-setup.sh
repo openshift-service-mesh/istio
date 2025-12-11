@@ -135,32 +135,15 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Enabled DNS capture for Istio proxy."
   fi
-}
 
-SECRET_NAME="istio-ca-secret"
-WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
-
-function install_validatingwebhook(){
-  # Workaround until https://github.com/istio-ecosystem/sail-operator/issues/749 is fixed
-  CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
-
-  # If not found, sleep for 5 seconds and retry once
-  if [ -z "$CA_BUNDLE" ]; then
-    echo "Secret not found. Sleeping for 10 seconds before retrying..."
-    sleep 10
-    
-    # Retry once
-    CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
-    
-    if [ -z "$CA_BUNDLE" ]; then
-      echo "Secret still not found after retry. Exiting."
-      exit 1
-    fi
-  fi  
-
-  sed -i "s|<base64-encoded-CA-cert>|$CA_BUNDLE|g" "$WEBHOOK_FILE"
-  kubectl apply -f "$WEBHOOK_FILE"
-  sed -i "s|$CA_BUNDLE|<base64-encoded-CA-cert>|g" "$WEBHOOK_FILE"
+  # Enable JWT and multiroot mesh for security-ca-custom profiles
+  if [[ "$WORKDIR" == *"security"* ]]; then
+    yq eval '
+      .spec.values.pilot.env.PILOT_JWT_ENABLE_REMOTE_JWKS = "true" |
+      .spec.values.pilot.env.ISTIO_MULTIROOT_MESH = "true"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured pilot.env for security-ca-custom profile."
+  fi
 }
 
 # Install ingress and egress gateways
@@ -202,7 +185,6 @@ if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
   install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
   install_istio || { echo "Failed to install Istio"; exit 1; }
-  install_validatingwebhook || { echo "Failed to install validatingwebhook"; exit 1; }
   install_gateways || { echo "Failed to install gateways"; exit 1; }
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
