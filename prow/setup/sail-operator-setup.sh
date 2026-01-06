@@ -198,6 +198,10 @@ function patch_config() {
   if [[ "$AMBIENT" == "true" ]]; then
     yq eval '.spec.profile = "ambient"' -i "$WORKDIR/$SAIL_IOP_FILE"
     yq eval ".spec.values.pilot.trustedZtunnelNamespace = \"$ZTUNNEL_NAMESPACE\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+
+    # Add configurations for ServiceEntry/DNS resolution
+    yq eval '.spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"' -i "$WORKDIR/$SAIL_IOP_FILE"
+
     echo "Configured Ambient mode for Istio."
   fi
 
