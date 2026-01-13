@@ -295,5 +295,10 @@ else
     test_status=$?
 fi
 
+
+# a workaround for https://github.com/kubernetes/kubernetes/issues/63702
+# we can detect if tests were terminated prematurely
+touch /tmp/ISTIO_TESTS_DONE
+
 # Exit with the status of the test command
 exit "$test_status"
