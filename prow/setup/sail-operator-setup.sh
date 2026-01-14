@@ -161,9 +161,9 @@ function patch_config() {
   if [[ "$WORKDIR" == *"telemetry-api"* ]]; then
     # The patch for the telemetry api tests is added because PR
     # https://github.com/istio-ecosystem/sail-operator/pull/1186
-    # adds "accessLogFile" globally and telemetry api needs it to be null.
+    # adds "accessLogFile" globally and telemetry api needs it to be empty.
     yq eval '
-      del(.spec.values.meshConfig.accessLogFile)
+      .spec.values.meshConfig.accessLogFile = ""
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured telemetry api."
 
