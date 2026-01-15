@@ -153,6 +153,14 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured pilot.env for security-ca-custom profile."
   fi
+
+  # Enable QUIC listeners and multiroot mesh for QUIC tests
+  if [[ "$WORKDIR" == *"quic"* ]]; then
+    yq eval '
+      .spec.values.pilot.env.PILOT_ENABLE_QUIC_LISTENERS = "true"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured pilot.env for QUIC tests."
+  fi
 }
 
 function patch_gateway_config() {
@@ -185,17 +193,34 @@ function patch_gateway_config() {
 
     echo "Added egress gateway secret volume configuration for filebased TLS origination."
   fi
+
+  if [[ "$WORKDIR" == *"quic"* ]]; then
+    # Add UDP port for QUIC/HTTP3 connections to ingress gateway
+    echo "Detected QUIC test, adding HTTP3/QUIC port configuration to ingress gateway..."
+
+    # Add HTTP3/QUIC port to ingress gateway service
+    yq eval '
+      .spec.ports += [{
+        "port": 443,
+        "targetPort": 8443,
+        "name": "http3",
+        "protocol": "UDP"
+      }]
+    ' -i "${WORKDIR}/istio-ingressgateway.yaml"
+
+    echo "Added HTTP3/QUIC port configuration to ingress gateway."
+  fi
 }
 
 # Install ingress and egress gateways
 function install_gateways(){
   helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
-  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
 
   # Apply test-specific gateway patches
   patch_gateway_config
 
+  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
