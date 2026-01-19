@@ -33,8 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/mergepatch"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayx "sigs.k8s.io/gateway-api/apisx/v1alpha1"
 	"sigs.k8s.io/yaml"
 
@@ -157,6 +156,10 @@ func getBuiltinClasses() map[gateway.ObjectName]gateway.GatewayController {
 		res[constants.RemoteGatewayClassName] = constants.UnmanagedGatewayController
 	}
 
+	if features.EnableAgentgateway {
+		res[constants.AgentgatewayClassName] = constants.ManagedAgentgatewayController
+	}
+
 	if features.EnableAmbientWaypoints {
 		res[constants.WaypointGatewayClassName] = constants.ManagedGatewayMeshController
 	}
@@ -205,6 +208,17 @@ func getClassInfos() map[gateway.GatewayController]classInfo {
 			// In particular, Istio across different versions consumes different address types, so this retains compat
 			addressType:     "",
 			controllerLabel: constants.ManagedGatewayMeshControllerLabel,
+		}
+	}
+	if features.EnableAgentgateway {
+		m[constants.ManagedAgentgatewayController] = classInfo{
+			controller:          constants.ManagedAgentgatewayController,
+			description:         "Istio with Agentgateway.",
+			templates:           "agentgateway",
+			defaultServiceType:  corev1.ServiceTypeLoadBalancer,
+			addressType:         gateway.HostnameAddressType,
+			controllerLabel:     constants.ManagedGatewayControllerLabel,
+			supportsListenerSet: true,
 		}
 	}
 
@@ -614,7 +628,7 @@ func translateInfraMeta[K ~string, V ~string](meta map[K]V) map[string]string {
 	return infra
 }
 
-func extractInfrastructureMetadata(gwInfra *gatewayv1.GatewayInfrastructure, isLabel bool, gw gateway.Gateway) map[string]string {
+func extractInfrastructureMetadata(gwInfra *gateway.GatewayInfrastructure, isLabel bool, gw gateway.Gateway) map[string]string {
 	if gwInfra != nil && isLabel && gwInfra.Labels != nil {
 		return translateInfraMeta(gwInfra.Labels)
 	}
@@ -688,10 +702,11 @@ type derivedInput struct {
 	TemplateInput
 
 	// Inserted from injection config
-	ProxyImage  string
-	ProxyConfig *meshapi.ProxyConfig
-	MeshConfig  *meshapi.MeshConfig
-	Values      map[string]any
+	ProxyImage        string
+	AgentgatewayImage string
+	ProxyConfig       *meshapi.ProxyConfig
+	MeshConfig        *meshapi.MeshConfig
+	Values            map[string]any
 }
 
 func (d *DeploymentController) render(templateName string, mi TemplateInput) ([]string, error) {
@@ -728,6 +743,11 @@ func (d *DeploymentController) render(templateName string, mi TemplateInput) ([]
 	input := derivedInput{
 		TemplateInput: mi,
 		ProxyImage: inject.ProxyImage(
+			cfg.Values.Struct(),
+			proxyConfig.GetImage(),
+			mi.Annotations,
+		),
+		AgentgatewayImage: inject.AgentgatewayImage(
 			cfg.Values.Struct(),
 			proxyConfig.GetImage(),
 			mi.Annotations,
@@ -867,7 +887,7 @@ func fetchParameters(gw *gateway.Gateway) (*types.NamespacedName, error) {
 }
 
 func (d *DeploymentController) setGatewayControllerVersion(gws gateway.Gateway) error {
-	patch := fmt.Sprintf(`{"apiVersion":"gateway.networking.k8s.io/v1beta1","kind":"Gateway","metadata":{"annotations":{"%s":"%d"}}}`,
+	patch := fmt.Sprintf(`{"apiVersion":"gateway.networking.k8s.io/v1","kind":"Gateway","metadata":{"annotations":{"%s":"%d"}}}`,
 		ControllerVersionAnnotation, ControllerVersion)
 
 	log.Debugf("applying %v", patch)

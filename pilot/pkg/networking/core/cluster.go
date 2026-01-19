@@ -267,6 +267,17 @@ func (configgen *ConfigGeneratorImpl) buildClusters(proxy *model.Proxy, req *mod
 			clusters = append(clusters, configgen.buildOutboundSniDnatClusters(proxy, req, patcher)...)
 		}
 		clusters = append(clusters, patcher.insertedClusters()...)
+		// Ingress gateway needs the clusters necessary for Double HBONE communications
+		// that happen cross cluster. A request arrives at the ingress and the LB
+		// configuration may straightaway redirect the request to a backend in a
+		// remote cluster/network.
+		if model.ShouldCreateDoubleHBONEResources(proxy) {
+			clusters = append(
+				clusters,
+				cb.buildInnerConnectOriginateCluster(proxy, req.Push),
+				cb.buildOuterConnectOriginateCluster(proxy, req.Push),
+			)
+		}
 	}
 
 	// OutboundTunnel cluster is needed for sidecar and gateway.
@@ -315,8 +326,13 @@ func (configgen *ConfigGeneratorImpl) buildOutboundClusters(cb *ClusterBuilder, 
 		if service.Resolution == model.Alias || service.Resolution == model.DynamicDNS {
 			continue
 		}
-		for _, port := range service.Ports {
+		for i, port := range service.Ports {
 			if port.Protocol == protocol.UDP {
+				continue
+			}
+			// For InferencePool services, only build cluster for the first port
+			// All endpoints from all ports are merged into this single cluster
+			if service.UseInferenceSemantics() && i > 0 {
 				continue
 			}
 			clusterKey := buildClusterKey(service, port, cb, proxy, efKeys)

@@ -35,6 +35,7 @@ import (
 
 	"istio.io/api/label"
 	"istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/http/headers"
@@ -179,7 +180,7 @@ func TestServices(t *testing.T) {
 			opt.Check = tcpValidator
 		}
 
-		if src.Config().HasSidecar() && t.Settings().AmbientMultiNetwork {
+		if t.Settings().AmbientMultiNetwork && src.Config().HasSidecar() && !dst.Config().HasSidecar() {
 			t.Skip("https://github.com/istio/istio/issues/57878")
 		}
 
@@ -355,8 +356,9 @@ func TestServerSideLB(t *testing.T) {
 			shouldBalance := dst.Config().HasServiceAddressedWaypointProxy()
 			// Istio client will not reuse connections for HTTP/1.1
 			opt.HTTP.HTTP2 = true
-			// Make sure we make multiple calls
-			opt.Count = 10
+			// Make sure we make multiple calls and scale the number of calls with the number of clusters as well.
+			// We need to make sure that we run enough requests to cover all the backends we want to hit.
+			opt.Count = 10 * len(t.AllClusters())
 			c := singleHost
 			if shouldBalance {
 				c = multipleHost
@@ -950,19 +952,6 @@ spec:
 	})
 }
 
-func sidecarInjected(t framework.TestContext, es ...echo.Target) bool {
-	t.Helper()
-
-	for _, e := range es {
-		for _, w := range e.WorkloadsOrFail(t) {
-			if w.Sidecar() != nil {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func TestAuthorizationL4(t *testing.T) {
 	framework.NewTest(t).Run(func(t framework.TestContext) {
 		applyDrainingWorkaround(t)
@@ -972,7 +961,7 @@ func TestAuthorizationL4(t *testing.T) {
 				t.Skip("this test is only for L4/TCP")
 			}
 
-			if t.Settings().AmbientMultiNetwork && sidecarInjected(t, src) && !sidecarInjected(t, dst) {
+			if t.Settings().AmbientMultiNetwork && src.Config().HasSidecar() && !dst.Config().HasSidecar() {
 				// Currently sidecars cannot talk to ambient endpoints on a remote network.
 				//
 				// Sidecars can't use double-HBONE and therefore cannot use ambient E/W gateways.
@@ -1029,7 +1018,7 @@ func TestAuthorizationL4(t *testing.T) {
 
 			for _, tc := range authzCases {
 				t.NewSubTest(tc.name).Run(func(t framework.TestContext) {
-					if t.Settings().AmbientMultiNetwork && (src.Config().HasSidecar() || dst.Config().HasSidecar()) {
+					if t.Settings().AmbientMultiNetwork && src.Config().HasSidecar() && !dst.Config().HasSidecar() {
 						// Sidecar + Ambient is not supported
 						t.Skip("https://github.com/istio/istio/issues/57878")
 					}
@@ -1140,9 +1129,6 @@ func TestAuthorizationGateway(t *testing.T) {
 					Timeout: time.Second * 2,
 					Check:   check.OK(),
 					To:      dst,
-				}
-				if t.Settings().AmbientMultiNetwork {
-					t.Skip("https://github.com/istio/istio/issues/57878")
 				}
 				f(t, istio.DefaultIngressOrFail(t, t), dst, opt)
 			})
@@ -2859,11 +2845,10 @@ func runTestContextForCalls(
 				labelServiceGlobal(t, app.ServiceName(), app.Config().Cluster)
 			}
 		}
-		// waypoint proxies also need to be labeled as global
-		for _, cls := range t.Clusters() {
-			labelServiceGlobal(t, apps.ServiceAddressedWaypoint.ServiceName(), cls)
-			labelServiceGlobal(t, apps.WorkloadAddressedWaypoint.ServiceName(), cls)
+		for name := range apps.WaypointProxies {
+			labelServiceGlobal(t, name, t.Clusters()...)
 		}
+
 		t.Cleanup(func() {
 			// cleanup services which other tests expect to be local
 			for _, app := range apps.Mesh {
@@ -2871,17 +2856,26 @@ func runTestContextForCalls(
 					unlabelServiceGlobal(t, app.ServiceName(), app.Config().Cluster)
 				}
 			}
-			for _, cls := range t.Clusters() {
-				unlabelServiceGlobal(t, apps.ServiceAddressedWaypoint.ServiceName(), cls)
-				unlabelServiceGlobal(t, apps.WorkloadAddressedWaypoint.ServiceName(), cls)
+			for name := range apps.WaypointProxies {
+				labelServiceGlobal(t, name, t.Clusters()...)
 			}
 		})
+		// Pilot delays pushing changes to be able to batch multiple incoming changes together and push them
+		// all at once. That means that there is a delay after the last detect change and the push of that
+		// change to the all the relevant nodes.
+		//
+		// We don't expect any changes that should trigger the push in parallel, so it should be enough to
+		// wait for the DebounceAfter time, after the pilot sees the update. Naturally, just because we updated
+		// service labels it does not mean that pilot will immediately see them - there is a race condition here,
+		// but we do expect pilot to notice the update rather quickly, so we double the DebounceAfter time here
+		// to account for this issue.
+		time.Sleep(2 * features.DebounceAfter)
 	}
 	for _, src := range svcs {
 		t.NewSubTestf("from %v %v", src.Config().Cluster.Name(), src.Config().Service).Run(func(t framework.TestContext) {
 			for _, dst := range getAllInstancesByServiceName() {
 				t.NewSubTestf("to all %v", dst.Config().Service).Run(func(t framework.TestContext) {
-					if t.Settings().AmbientMultiNetwork && (src.Config().HasSidecar() || dst.Config().HasSidecar()) {
+					if t.Settings().AmbientMultiNetwork && src.Config().HasSidecar() && !dst.Config().HasSidecar() {
 						// Skip sidecar to sidecar in multinetwork, as they will use the east-west gateway which is not tested here.
 						t.Skip("https://github.com/istio/istio/issues/57878")
 					}
@@ -3803,9 +3797,6 @@ spec:
 func TestWaypointWithSidecarBackend(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(t framework.TestContext) {
-			if t.Settings().AmbientMultiNetwork {
-				t.Skip("https://github.com/istio/istio/issues/57878")
-			}
 			// Ensure we go through the waypoint (verified by modifying the request) and that we are doing mTLS.
 			t.ConfigIstio().
 				Eval(apps.Namespace.Name(), apps.Namespace.Name(), `apiVersion: gateway.networking.k8s.io/v1

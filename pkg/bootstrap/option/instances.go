@@ -232,6 +232,10 @@ func EnvoyStatusPort(value int) Instance {
 	return newOption("envoy_status_port", value)
 }
 
+func GlobalDownstreamMaxConnections(value int) Instance {
+	return newOption("global_downstream_max_connections", value)
+}
+
 func EnvoyStatusPortEnableProxyProtocol(value bool) Instance {
 	return newOption("envoy_status_port_enable_proxy_protocol", value)
 }
@@ -308,6 +312,6 @@ func EnvoyStatsFlushInterval(interval time.Duration) Instance {
 	return newOption("stats_flush_interval", interval)
 }
 
-func EnvoyStatsEvictionInterval(interval time.Duration) Instance {
-	return newOption("stats_eviction_interval", interval)
+func EnvoyStatsEvictionInterval(interval *durationpb.Duration) Instance {
+	return newEnvoyDurationOption("stats_eviction_interval", interval)
 }

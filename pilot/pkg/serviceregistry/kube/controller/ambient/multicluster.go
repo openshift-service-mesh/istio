@@ -22,7 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"istio.io/api/label"
 	networkingclient "istio.io/client-go/pkg/apis/networking/v1"
@@ -54,7 +54,7 @@ func (a *index) buildGlobalCollections(
 	localCluster *multicluster.Cluster,
 	localAuthzPolicies krt.Collection[*securityclient.AuthorizationPolicy],
 	localPeerAuths krt.Collection[*securityclient.PeerAuthentication],
-	localGatewayClasses krt.Collection[*v1beta1.GatewayClass],
+	localGatewayClasses krt.Collection[*gatewayv1.GatewayClass],
 	localWorkloadEntries krt.Collection[*networkingclient.WorkloadEntry],
 	localServiceEntries krt.Collection[*networkingclient.ServiceEntry],
 	localServiceEntryInformers kclient.Informer[*networkingclient.ServiceEntry],
@@ -77,7 +77,7 @@ func (a *index) buildGlobalCollections(
 	LocalNamespaces := localCluster.Namespaces()
 	LocalNodes := localCluster.Nodes()
 	LocalGateways := localCluster.Gateways()
-	LocalWaypoints := a.WaypointsCollection(options.ClusterID, LocalGateways, localGatewayClasses, LocalPods, opts)
+	LocalWaypoints := a.builder.WaypointsCollection(options.ClusterID, LocalGateways, localGatewayClasses, LocalPods, opts)
 
 	LocalMeshConfig := options.MeshConfig
 	// These first collections can't be merged since the Kubernetes APIs don't have enough room
@@ -93,8 +93,8 @@ func (a *index) buildGlobalCollections(
 	)
 	serviceInformersByCluster := informerIndexByCluster(GlobalServices)
 
-	LocalGatewaysWithCluster := krt.MapCollection(LocalGateways, func(obj *v1beta1.Gateway) krt.ObjectWithCluster[*v1beta1.Gateway] {
-		return krt.ObjectWithCluster[*v1beta1.Gateway]{
+	LocalGatewaysWithCluster := krt.MapCollection(LocalGateways, func(obj *gatewayv1.Gateway) krt.ObjectWithCluster[*gatewayv1.Gateway] {
+		return krt.ObjectWithCluster[*gatewayv1.Gateway]{
 			ClusterID: localCluster.ID,
 			Object:    &obj,
 		}
@@ -102,7 +102,7 @@ func (a *index) buildGlobalCollections(
 	GlobalGatewaysWithCluster := nestedCollectionFromLocalAndRemote(
 		LocalGatewaysWithCluster,
 		clusters,
-		func(ctx krt.HandlerContext, c *multicluster.Cluster) *krt.Collection[krt.ObjectWithCluster[*v1beta1.Gateway]] {
+		func(ctx krt.HandlerContext, c *multicluster.Cluster) *krt.Collection[krt.ObjectWithCluster[*gatewayv1.Gateway]] {
 			if !kube.WaitForCacheSync(fmt.Sprintf("ambient/informer/gateways[%s]", c.ID), a.stop, c.Gateways().HasSynced) {
 				log.Warnf("Failed to sync gateways informer for cluster %s", c.ID)
 				return nil
@@ -116,8 +116,8 @@ func (a *index) buildGlobalCollections(
 				krt.WithDebugging(opts.Debugger()),
 				krt.WithStop(c.GetStop()),
 			}
-			return ptr.Of(krt.MapCollection(c.Gateways(), func(obj *v1beta1.Gateway) krt.ObjectWithCluster[*v1beta1.Gateway] {
-				return krt.ObjectWithCluster[*v1beta1.Gateway]{
+			return ptr.Of(krt.MapCollection(c.Gateways(), func(obj *gatewayv1.Gateway) krt.ObjectWithCluster[*gatewayv1.Gateway] {
+				return krt.ObjectWithCluster[*gatewayv1.Gateway]{
 					ClusterID: c.ID,
 					Object:    &obj,
 				}
@@ -195,7 +195,7 @@ func (a *index) buildGlobalCollections(
 		opts,
 	)
 
-	LocalWorkloadServices := a.ServicesCollection(
+	LocalWorkloadServices := a.builder.ServicesCollection(
 		localCluster.ID,
 		localCluster.Services(),
 		localServiceEntries,
