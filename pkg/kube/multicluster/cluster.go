@@ -44,13 +44,24 @@ type Cluster struct {
 	initialSync *atomic.Bool
 	// initialSyncTimeout is set when RunAndWait timed out
 	initialSyncTimeout *atomic.Bool
+
+	syncStatusCallback SyncStatusCallback
 }
+
+type SyncStatusCallback func(cluster.ID, string)
 
 type ACTION int
 
 const (
 	Add ACTION = iota
 	Update
+)
+
+const (
+	SyncStatusSynced  = "synced"
+	SyncStatusSyncing = "syncing"
+	SyncStatusTimeout = "timeout"
+	SyncStatusClosed  = "closed"
 )
 
 func (a ACTION) String() string {
@@ -66,13 +77,18 @@ func (a ACTION) String() string {
 // Run starts the cluster's informers and waits for caches to sync. Once caches are synced, we mark the cluster synced.
 // This should be called after each of the handlers have registered informers, and should be run in a goroutine.
 func (c *Cluster) Run(mesh mesh.Watcher, handlers []handler, action ACTION) {
+	c.reportStatus(SyncStatusSyncing)
 	if features.RemoteClusterTimeout > 0 {
 		time.AfterFunc(features.RemoteClusterTimeout, func() {
+			if c.Closed() {
+				log.Debugf("remote cluster %s was stopped before hitting the sync timeout", c.ID)
+			}
 			if !c.initialSync.Load() {
 				log.Errorf("remote cluster %s failed to sync after %v", c.ID, features.RemoteClusterTimeout)
 				timeouts.With(clusterLabel.Value(string(c.ID))).Increment()
 			}
 			c.initialSyncTimeout.Store(true)
+			c.reportStatus(SyncStatusTimeout)
 		})
 	}
 
@@ -109,6 +125,7 @@ func (c *Cluster) Run(mesh mesh.Watcher, handlers []handler, action ACTION) {
 	}
 
 	c.initialSync.Store(true)
+	c.reportStatus(SyncStatusSynced)
 }
 
 // Stop closes the stop channel, if is safe to be called multi times.
@@ -118,6 +135,7 @@ func (c *Cluster) Stop() {
 		return
 	default:
 		close(c.stop)
+		c.reportStatus(SyncStatusClosed)
 	}
 }
 
@@ -142,4 +160,23 @@ func (c *Cluster) Closed() bool {
 
 func (c *Cluster) SyncDidTimeout() bool {
 	return !c.initialSync.Load() && c.initialSyncTimeout.Load()
+}
+
+func (c *Cluster) SyncStatus() string {
+	if c.Closed() {
+		return SyncStatusClosed
+	}
+	if c.SyncDidTimeout() {
+		return SyncStatusTimeout
+	}
+	if c.HasSynced() {
+		return SyncStatusSynced
+	}
+	return SyncStatusSyncing
+}
+
+func (c *Cluster) reportStatus(status string) {
+	if c.syncStatusCallback != nil {
+		c.syncStatusCallback(c.ID, status)
+	}
 }

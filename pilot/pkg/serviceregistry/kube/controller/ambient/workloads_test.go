@@ -24,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"istio.io/api/annotation"
 	"istio.io/api/label"
@@ -835,7 +834,7 @@ func TestPodWorkloads(t *testing.T) {
 			WorkloadServicesNamespaceIndex := krt.NewNamespaceIndex(WorkloadServices)
 			EndpointSlices := krttest.GetMockCollection[*discovery.EndpointSlice](mock)
 			EndpointSlicesAddressIndex := endpointSliceAddressIndex(EndpointSlices)
-			builder := a.podWorkloadBuilder(
+			builder := a.builder.podWorkloadBuilder(
 				GetMeshConfig(mock),
 				krttest.GetMockCollection[model.WorkloadAuthorization](mock),
 				krttest.GetMockCollection[*securityclient.PeerAuthentication](mock),
@@ -1390,7 +1389,7 @@ func TestWorkloadEntryWorkloads(t *testing.T) {
 			a := newAmbientUnitTest(t)
 			WorkloadServices := krttest.GetMockCollection[model.ServiceInfo](mock)
 			WorkloadServicesNamespaceIndex := krt.NewNamespaceIndex(WorkloadServices)
-			builder := a.workloadEntryWorkloadBuilder(
+			builder := a.builder.workloadEntryWorkloadBuilder(
 				GetMeshConfig(mock),
 				krttest.GetMockCollection[model.WorkloadAuthorization](mock),
 				krttest.GetMockCollection[*securityclient.PeerAuthentication](mock),
@@ -1639,7 +1638,7 @@ func TestServiceEntryWorkloads(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := krttest.NewMock(t, tt.inputs)
 			a := newAmbientUnitTest(t)
-			builder := a.serviceEntryWorkloadBuilder(
+			builder := a.builder.serviceEntryWorkloadBuilder(
 				GetMeshConfig(mock),
 				krttest.GetMockCollection[model.WorkloadAuthorization](mock),
 				krttest.GetMockCollection[*securityclient.PeerAuthentication](mock),
@@ -1765,7 +1764,7 @@ func TestEndpointSliceWorkloads(t *testing.T) {
 			mock := krttest.NewMock(t, tt.inputs)
 			a := newAmbientUnitTest(t)
 			WorkloadServices := krttest.GetMockCollection[model.ServiceInfo](mock)
-			builder := a.endpointSlicesBuilder(
+			builder := a.builder.endpointSlicesBuilder(
 				GetMeshConfig(mock),
 				WorkloadServices,
 			)
@@ -1841,7 +1840,7 @@ func newAmbientUnitTest(t test.Failer) *index {
 				Labels: map[string]string{label.TopologyNetwork.Name: testNW},
 			},
 		},
-		&v1beta1.Gateway{
+		&gatewayv1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "remote-network-ip",
 				Namespace: "ns-gtw",
@@ -1852,9 +1851,9 @@ func newAmbientUnitTest(t test.Failer) *index {
 					label.TopologyNetwork.Name: "remote-network",
 				},
 			},
-			Spec: v1beta1.GatewaySpec{
+			Spec: gatewayv1.GatewaySpec{
 				GatewayClassName: "istio-remote",
-				Listeners: []v1beta1.Listener{
+				Listeners: []gatewayv1.Listener{
 					{
 						Name:     "cross-network",
 						Port:     15008,
@@ -1862,7 +1861,7 @@ func newAmbientUnitTest(t test.Failer) *index {
 					},
 				},
 			},
-			Status: v1beta1.GatewayStatus{
+			Status: gatewayv1.GatewayStatus{
 				Addresses: []gatewayv1.GatewayStatusAddress{
 					{
 						Type:  ptr.Of(gatewayv1.IPAddressType),
@@ -1871,7 +1870,7 @@ func newAmbientUnitTest(t test.Failer) *index {
 				},
 			},
 		},
-		&v1beta1.Gateway{
+		&gatewayv1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "remote-network-hostname",
 				Namespace: "ns-gtw",
@@ -1882,9 +1881,9 @@ func newAmbientUnitTest(t test.Failer) *index {
 					label.TopologyNetwork.Name: "remote-network-hostname",
 				},
 			},
-			Spec: v1beta1.GatewaySpec{
+			Spec: gatewayv1.GatewaySpec{
 				GatewayClassName: "istio-remote",
-				Listeners: []v1beta1.Listener{
+				Listeners: []gatewayv1.Listener{
 					{
 						Name:     "cross-network",
 						Port:     15008,
@@ -1892,7 +1891,7 @@ func newAmbientUnitTest(t test.Failer) *index {
 					},
 				},
 			},
-			Status: v1beta1.GatewayStatus{
+			Status: gatewayv1.GatewayStatus{
 				Addresses: []gatewayv1.GatewayStatusAddress{
 					{
 						Type:  ptr.Of(gatewayv1.HostnameAddressType),
@@ -1902,9 +1901,9 @@ func newAmbientUnitTest(t test.Failer) *index {
 			},
 		},
 	})
-	networks := buildNetworkCollections(
+	networks := BuildNetworkCollections(
 		krttest.GetMockCollection[*v1.Namespace](mock),
-		krttest.GetMockCollection[*v1beta1.Gateway](mock),
+		krttest.GetMockCollection[*gatewayv1.Gateway](mock),
 		Options{
 			SystemNamespace: systemNS,
 			ClusterID:       testC,
@@ -1918,6 +1917,14 @@ func newAmbientUnitTest(t test.Failer) *index {
 			DefaultAllowFromWaypoint:              features.DefaultAllowFromWaypoint,
 			EnableK8SServiceSelectWorkloadEntries: features.EnableK8SServiceSelectWorkloadEntries,
 		},
+	}
+	idx.builder = Builder{
+		DomainSuffix:      idx.DomainSuffix,
+		ClusterID:         idx.ClusterID,
+		NetworkGateways:   idx.networks.NetworkGateways,
+		GatewaysByNetwork: idx.networks.GatewaysByNetwork,
+		Flags:             idx.Flags,
+		Network:           idx.Network,
 	}
 	kube.WaitForCacheSync("test", test.NewStop(t), idx.networks.HasSynced)
 	return idx

@@ -33,9 +33,12 @@ import (
 	"istio.io/istio/pilot/pkg/serviceregistry/provider"
 	"istio.io/istio/pilot/pkg/serviceregistry/serviceentry"
 	"istio.io/istio/pkg/backoff"
+	"istio.io/istio/pkg/config/mesh/kubemesh"
+	"istio.io/istio/pkg/config/mesh/meshwatcher"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/collections"
 	kubelib "istio.io/istio/pkg/kube"
+	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/kube/multicluster"
 	"istio.io/istio/pkg/webhooks"
 )
@@ -123,6 +126,26 @@ func NewMulticluster(
 		}
 		log.Infof("Initializing Kubernetes service registry %q", options.ClusterID)
 		options.ConfigCluster = configCluster
+
+		// Create per-cluster mesh watcher for remote clusters
+		// This allows controllers to detect cluster-specific settings that may be relevant for the local proxies, e.g. trust domain.
+		if !configCluster {
+			meshConfigMapName := mc.getMeshConfigMapName()
+			meshSource := kubemesh.NewConfigMapSource(
+				client,
+				options.SystemNamespace,
+				meshConfigMapName,
+				kubemesh.MeshConfigKey,
+				krt.NewOptionsBuilder(stop, "", nil),
+			)
+			remoteMeshCollection := meshwatcher.NewCollection(
+				krt.NewOptionsBuilder(stop, "", nil),
+				meshSource,
+			)
+			options.MeshWatcher = meshwatcher.ConfigAdapter(remoteMeshCollection)
+			log.Infof("Created mesh watcher for remote cluster %q", cluster.ID)
+		}
+
 		kubeRegistry := NewController(client, options)
 		kubeController := &kubeController{
 			MeshServiceController: opts.MeshServiceController,
@@ -136,6 +159,15 @@ func NewMulticluster(
 	return mc
 }
 
+// getMeshConfigMapName returns the mesh ConfigMap name based on the revision
+func (m *Multicluster) getMeshConfigMapName() string {
+	name := "istio"
+	if m.revision == "" || m.revision == "default" {
+		return name
+	}
+	return name + "-" + m.revision
+}
+
 // initializeCluster initializes the cluster by setting various handlers.
 func (m *Multicluster) initializeCluster(cluster *multicluster.Cluster, kubeController *kubeController, kubeRegistry *Controller,
 	options Options, configCluster bool, clusterStopCh <-chan struct{},
@@ -145,10 +177,6 @@ func (m *Multicluster) initializeCluster(cluster *multicluster.Cluster, kubeCont
 	if m.serviceEntryController != nil && features.EnableServiceEntrySelectPods {
 		// Add an instance handler in the kubernetes registry to notify service entry store about pod events
 		kubeRegistry.AppendWorkloadHandler(m.serviceEntryController.WorkloadInstanceHandler)
-	}
-
-	if configCluster && m.serviceEntryController != nil {
-		kubeRegistry.AppendNamespaceDiscoveryHandlers(m.serviceEntryController.NamespaceDiscoveryHandler)
 	}
 
 	// TODO implement deduping in aggregate registry to allow multiple k8s registries to handle WorkloadEntry
@@ -168,7 +196,6 @@ func (m *Multicluster) initializeCluster(cluster *multicluster.Cluster, kubeCont
 			kubeController.workloadEntryController.AppendWorkloadHandler(kubeRegistry.WorkloadInstanceHandler)
 			// ServiceEntry selects WorkloadEntry from remote cluster
 			kubeController.workloadEntryController.AppendWorkloadHandler(m.serviceEntryController.WorkloadInstanceHandler)
-			kubeRegistry.AppendNamespaceDiscoveryHandlers(kubeController.workloadEntryController.NamespaceDiscoveryHandler)
 			m.opts.MeshServiceController.AddRegistryAndRun(kubeController.workloadEntryController, clusterStopCh)
 			go configStore.Run(clusterStopCh)
 		}
