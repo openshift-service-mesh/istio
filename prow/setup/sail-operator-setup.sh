@@ -215,11 +215,47 @@ function patch_config() {
   fi
 }
 
+function patch_gateway_config() {
+  # Adds gateway-specific configurations based on test requirements
+  if [[ "$WORKDIR" == *"filebased-tls-origination"* ]]; then
+    # Add volume and volumeMount for egress gateway TLS origination tests
+    echo "Detected filebased TLS origination test, adding secret volume configuration to egress gateway..."
+
+    # Add volume to egress gateway deployment
+    yq eval '
+      .spec.template.spec.volumes = [{
+        "name": "client-custom-certs",
+        "secret": {
+          "secretName": "egress-gw-cacerts",
+          "optional": true
+        }
+      }]
+    ' -i "${WORKDIR}/istio-egressgateway.yaml"
+
+    # Add volumeMount to istio-proxy container
+    yq eval '
+      .spec.template.spec.containers[] |= (
+        select(.name == "istio-proxy").volumeMounts = [{
+          "name": "client-custom-certs",
+          "mountPath": "/etc/certs/custom",
+          "readOnly": true
+        }]
+      )
+    ' -i "${WORKDIR}/istio-egressgateway.yaml"
+
+    echo "Added egress gateway secret volume configuration for filebased TLS origination."
+  fi
+}
+
 # Install ingress and egress gateways
 function install_gateways() {
   helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+
+  # Apply test-specific gateway patches
+  patch_gateway_config
+
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
