@@ -52,7 +52,7 @@ spec:
       serviceAccountName: sleep
       containers:
       - name: sleep
-        image: curlimages/curl:8.16.0
+        image: quay.io/sail-dev/curl
         command: ["/bin/sleep", "infinity"]
         imagePullPolicy: IfNotPresent
         volumeMounts:
