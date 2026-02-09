@@ -15,8 +15,23 @@
 # limitations under the License.
 
 # This script is used to run the integration tests on OpenShift.
-# Usage: ./integ-suite-ocp.sh TEST_SUITE SKIP_TESTS, example: /prow/integ-suite-ocp.sh telemetry "TestClientTracing|TestServerTracing"
-# TEST_SUITE: The test suite to run. Default is "pilot". Available options are "pilot", "security", "telemetry", "helm".
+# Usage: ./integ-suite-ocp.sh [TEST_SUITE] [SKIP_TESTS] [SKIP_SUITE] [SPECIFIC_TESTS]
+# Example: ./integ-suite-ocp.sh telemetry "TestAuthZCheck|TestRevisionTags" "tracing/zipkin|policy" "TestAccessLogs|TestAccessLogsFilter"
+#
+# Parameters can also be set via environment variables:
+#   TEST_SUITE: The test suite to run. Default is "pilot". Available options are "pilot", "security", "telemetry", "helm", "ambient".
+#   SKIP_TESTS: The tests to skip. Default is "".                          e.g. "TestAuthZCheck|TestRevisionTags"
+#   SKIP_SUITE: The test suites under main suite to skip. Default is "".   e.g. "tracing/zipkin|policy"
+#   SPECIFIC_TESTS: The specific tests ONLY to run. Default is "".         e.g. "TestAccessLogs|TestAccessLogsFilter"
+#
+# Examples:
+#   ./integ-suite-ocp.sh telemetry                                                            # Run all telemetry tests
+#   ./integ-suite-ocp.sh telemetry "" "" "TestAccessLogs|TestAccessLogsFilter"                # Run only specific tests
+#   ./integ-suite-ocp.sh telemetry "" "tracing/zipkin" "TestAccessLogs|TestAccessLogsFilter"  # Run specific tests but skip if in tracing/zipkin suite
+#   SPECIFIC_TESTS="TestAccessLogs|TestAccessLogsFilter" ./integ-suite-ocp.sh telemetry       # Same as above, using env var
+#   SKIP_TESTS="TestAuthZCheck|TestRevisionTags" ./integ-suite-ocp.sh pilot                   # Skip specific tests
+#   SKIP_SUITE="tracing/zipkin|policy" ./integ-suite-ocp.sh telemetry                         # Skip specific suites
+#
 # TODO: Use the same arguments as integ-suite.kind.sh uses
 
 WD=$(dirname "$0")
@@ -24,8 +39,10 @@ ROOT=$(dirname "$WD")
 WD=$(cd "$WD"; pwd)
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export TAG="${TAG:-"istio-testing"}"
-SKIP_TESTS="${2:-""}"
-TEST_SUITE="${1:-"pilot"}"
+TEST_SUITE="${1:-${TEST_SUITE:-"pilot"}}"
+SKIP_TESTS="${2:-${SKIP_TESTS:-""}}"
+SKIP_SUITE="${3:-${SKIP_SUITE:-""}}"
+SPECIFIC_TESTS="${4:-${SPECIFIC_TESTS:-""}}"
 SKIP_SETUP="${SKIP_SETUP:-"false"}"
 INSTALL_METALLB="${INSTALL_METALLB:-"false"}"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
@@ -33,8 +50,8 @@ CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
-DEPLOY_GATEWAY_API="false"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
+DEPLOY_GATEWAY_API="false"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -189,18 +206,31 @@ setup_junit_report() {
     echo "JUNIT_REPORT: ${JUNIT_REPORT}"
 }
 
+# Prepare go list expression for skipping suites
+if [[ -n "$SKIP_SUITE" ]]; then
+  mapfile -t TEST_PATH < <(
+    go list -tags=integ "./tests/integration/${TEST_SUITE}/..." |
+    grep -vE "/(${SKIP_SUITE})$"
+  )
+else
+  TEST_PATH=("./tests/integration/${TEST_SUITE}/...")
+fi
+
 # Build the base command and store it in an array
-base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "./tests/integration/${TEST_SUITE}/..."
-          "--istio.test.ci"
-          "--istio.test.pullpolicy=IfNotPresent"
-          "--istio.test.work_dir=${ARTIFACTS_DIR}"
-          "--istio.test.skipTProxy=true"
-          "--istio.test.skipVM=true"
-          "--istio.test.istio.enableCNI=true"
-          "--istio.test.hub=${TEST_HUB}"
-          "--istio.test.tag=${TAG}"
-          "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
-          "--istio.test.openshift")
+base_cmd=(
+  "go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m"
+  "${TEST_PATH[@]}"
+  "--istio.test.ci"
+  "--istio.test.pullpolicy=IfNotPresent"
+  "--istio.test.work_dir=${ARTIFACTS_DIR}"
+  "--istio.test.skipTProxy=true"
+  "--istio.test.skipVM=true"
+  "--istio.test.istio.enableCNI=true"
+  "--istio.test.hub=${TEST_HUB}"
+  "--istio.test.tag=${TAG}"
+  "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
+  "--istio.test.openshift"
+)
 
 helm_values="global.platform=openshift"
 
@@ -246,6 +276,11 @@ if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
     SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"
     base_cmd+=("--istio.test.kube.deploy=false")
     base_cmd+=("--istio.test.kube.controlPlaneInstaller=${SAIL_SETUP_SCRIPT}")
+fi
+
+# Append specific tests flag if SPECIFIC_TESTS is set, e.g.: "TestTraffic|TestServices"
+if [ -n "${SPECIFIC_TESTS}" ]; then
+    base_cmd+=("-run" "${SPECIFIC_TESTS}")
 fi
 
 # Append skip tests flag if SKIP_TESTS is set
