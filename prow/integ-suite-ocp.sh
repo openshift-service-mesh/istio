@@ -50,8 +50,8 @@ CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
-DEPLOY_GATEWAY_API="false"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
+DEPLOY_GATEWAY_API="false"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -206,26 +206,31 @@ setup_junit_report() {
     echo "JUNIT_REPORT: ${JUNIT_REPORT}"
 }
 
-
 # Prepare go list expression for skipping suites
 if [[ -n "$SKIP_SUITE" ]]; then
-  TEST_PATH=$(go list -tags=integ ./tests/integration/${TEST_SUITE}/... | grep -vE "/(${SKIP_SUITE})$")
+  mapfile -t TEST_PATH < <(
+    go list -tags=integ "./tests/integration/${TEST_SUITE}/..." |
+    grep -vE "/(${SKIP_SUITE})$"
+  )
 else
-  TEST_PATH="./tests/integration/${TEST_SUITE}/..."
+  TEST_PATH=("./tests/integration/${TEST_SUITE}/...")
 fi
 
 # Build the base command and store it in an array
-base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "${TEST_PATH}"
-          "--istio.test.ci"
-          "--istio.test.pullpolicy=IfNotPresent"
-          "--istio.test.work_dir=${ARTIFACTS_DIR}"
-          "--istio.test.skipTProxy=true"
-          "--istio.test.skipVM=true"
-          "--istio.test.istio.enableCNI=true"
-          "--istio.test.hub=${TEST_HUB}"
-          "--istio.test.tag=${TAG}"
-          "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
-          "--istio.test.openshift")
+base_cmd=(
+  "go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m"
+  "${TEST_PATH[@]}"
+  "--istio.test.ci"
+  "--istio.test.pullpolicy=IfNotPresent"
+  "--istio.test.work_dir=${ARTIFACTS_DIR}"
+  "--istio.test.skipTProxy=true"
+  "--istio.test.skipVM=true"
+  "--istio.test.istio.enableCNI=true"
+  "--istio.test.hub=${TEST_HUB}"
+  "--istio.test.tag=${TAG}"
+  "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
+  "--istio.test.openshift"
+)
 
 helm_values="global.platform=openshift"
 
