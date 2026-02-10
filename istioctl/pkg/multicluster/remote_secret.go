@@ -386,6 +386,10 @@ func legacyGetServiceAccountSecret(
 }
 
 func getOrCreateServiceAccount(client kube.CLIClient, opt RemoteSecretOptions) (*v1.ServiceAccount, error) {
+	if opt.CreateServiceAccount {
+		return nil, fmt.Errorf("'--create-service-account=false' should be set when using OpenShift Service Mesh Operator")
+	}
+
 	if sa, err := client.Kube().CoreV1().ServiceAccounts(opt.Namespace).Get(
 		context.TODO(), opt.ServiceAccountName, metav1.GetOptions{}); err == nil {
 		return sa, nil
