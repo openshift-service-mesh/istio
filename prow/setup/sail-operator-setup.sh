@@ -137,7 +137,16 @@ function install_istio(){
 
 function patch_config() {
   # adds some control plane values that are mandatory and not available in iop.yaml
-  if [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
+  if [[ "$WORKDIR" == *"telemetry-api"* ]]; then
+    # The patch for the telemetry api tests is added because PR
+    # https://github.com/istio-ecosystem/sail-operator/pull/1186
+    # adds "accessLogFile" globally and telemetry api needs it to be empty.
+    yq eval '
+      .spec.values.meshConfig.accessLogFile = ""
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured telemetry api."
+
+  elif [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
   # Workaround until https://github.com/istio/istio/pull/55408 is merged
     yq eval '
       .spec.values.meshConfig.enableTracing = true |
@@ -183,13 +192,74 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured pilot.env for security-ca-custom profile."
   fi
+
+  # Enable QUIC listeners and multiroot mesh for QUIC tests
+  if [[ "$WORKDIR" == *"quic"* ]]; then
+    yq eval '
+      .spec.values.pilot.env.PILOT_ENABLE_QUIC_LISTENERS = "true"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured pilot.env for QUIC tests."
+  fi
+}
+
+function patch_gateway_config() {
+  # Adds gateway-specific configurations based on test requirements
+  if [[ "$WORKDIR" == *"filebased-tls-origination"* ]]; then
+    # Add volume and volumeMount for egress gateway TLS origination tests
+    echo "Detected filebased TLS origination test, adding secret volume configuration to egress gateway..."
+
+    # Add volume to egress gateway deployment
+    yq eval '
+      .spec.template.spec.volumes = [{
+        "name": "client-custom-certs",
+        "secret": {
+          "secretName": "egress-gw-cacerts",
+          "optional": true
+        }
+      }]
+    ' -i "${WORKDIR}/istio-egressgateway.yaml"
+
+    # Add volumeMount to istio-proxy container
+    yq eval '
+      .spec.template.spec.containers[] |= (
+        select(.name == "istio-proxy").volumeMounts = [{
+          "name": "client-custom-certs",
+          "mountPath": "/etc/certs/custom",
+          "readOnly": true
+        }]
+      )
+    ' -i "${WORKDIR}/istio-egressgateway.yaml"
+
+    echo "Added egress gateway secret volume configuration for filebased TLS origination."
+  fi
+
+  if [[ "$WORKDIR" == *"quic"* ]]; then
+    # Add UDP port for QUIC/HTTP3 connections to ingress gateway
+    echo "Detected QUIC test, adding HTTP3/QUIC port configuration to ingress gateway..."
+
+    # Add HTTP3/QUIC port to ingress gateway service
+    yq eval '
+      .spec.ports += [{
+        "port": 443,
+        "targetPort": 8443,
+        "name": "http3",
+        "protocol": "UDP"
+      }]
+    ' -i "${WORKDIR}/istio-ingressgateway.yaml"
+
+    echo "Added HTTP3/QUIC port configuration to ingress gateway."
+  fi
 }
 
 # Install ingress and egress gateways
 function install_gateways() {
   helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
-  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+
+  # Apply test-specific gateway patches
+  patch_gateway_config
+
+  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
