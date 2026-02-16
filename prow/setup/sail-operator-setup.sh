@@ -151,6 +151,16 @@ function patch_config() {
     echo "Configured telemetry api."
 
   elif [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
+  if [[ "$WORKDIR" == *"telemetry-api"* ]]; then
+    # The patch for the telemetry api tests is added because PR
+    # https://github.com/istio-ecosystem/sail-operator/pull/1186
+    # adds "accessLogFile" globally and telemetry api needs it to be empty.
+    yq eval '
+      .spec.values.meshConfig.accessLogFile = ""
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured telemetry api."
+
+  elif [[ "$WORKDIR" == *"telemetry-tracing-zipkin"* ]]; then
   # Workaround until https://github.com/istio/istio/pull/55408 is merged
     yq eval '
       .spec.values.meshConfig.enableTracing = true |
@@ -295,6 +305,11 @@ function patch_ztunnel_config() {
 function install_gateways() {
   helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+
+  # Apply test-specific gateway patches
+  patch_gateway_config
+
+  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
 
   # Apply test-specific gateway patches
   patch_gateway_config
