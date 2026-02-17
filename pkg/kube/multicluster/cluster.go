@@ -68,6 +68,9 @@ func (a ACTION) String() string {
 func (c *Cluster) Run(mesh mesh.Watcher, handlers []handler, action ACTION) {
 	if features.RemoteClusterTimeout > 0 {
 		time.AfterFunc(features.RemoteClusterTimeout, func() {
+			if c.Closed() {
+				log.Debugf("remote cluster %s was stopped before hitting the sync timeout", c.ID)
+			}
 			if !c.initialSync.Load() {
 				log.Errorf("remote cluster %s failed to sync after %v", c.ID, features.RemoteClusterTimeout)
 				timeouts.With(clusterLabel.Value(string(c.ID))).Increment()
@@ -79,6 +82,11 @@ func (c *Cluster) Run(mesh mesh.Watcher, handlers []handler, action ACTION) {
 	// Build a namespace watcher. This must have no filter, since this is our input to the filter itself.
 	// This must be done before we build components, so they can access the filter.
 	namespaces := kclient.New[*corev1.Namespace](c.Client)
+	// When this cluster stops, clean up the namespace watcher
+	go func() {
+		<-c.stop
+		namespaces.ShutdownHandlers()
+	}()
 	// This will start a namespace informer and wait for it to be ready. So we must start it in a go routine to avoid blocking.
 	filter := filter.NewDiscoveryNamespacesFilter(namespaces, mesh, c.stop)
 	kube.SetObjectFilter(c.Client, filter)
