@@ -18,6 +18,7 @@ package pqc
 
 import (
 	"fmt"
+	"net/http"
 	"path"
 	"testing"
 	"time"
@@ -231,7 +232,7 @@ spec:
 						MinVersion:       "1.3",
 						CurvePreferences: []string{"X25519MLKEM768"},
 					},
-					Check: check.OK(),
+					Check: check.Status(http.StatusOK),
 				})
 			})
 
@@ -248,12 +249,8 @@ spec:
 						MinVersion:       "1.3",
 						CurvePreferences: []string{"P-256"},
 					},
-<<<<<<< HEAD
-					Check: check.Or(check.TLSHandshakeFailure(), check.ConnectionResetByPeer()),
-=======
 					Timeout: 5 * time.Second,
 					Check:   check.TLSHandshakeFailure(),
->>>>>>> 7a510288a4 (Cherry-pick downstream changes to release-1.30 (#761))
 				})
 			})
 		})
@@ -262,8 +259,6 @@ spec:
 func TestWaypoint(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(t framework.TestContext) {
-<<<<<<< HEAD
-=======
 			serviceEntryYaml := `
 apiVersion: networking.istio.io/v1
 kind: ServiceEntry
