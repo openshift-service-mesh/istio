@@ -241,7 +241,7 @@ func (a *index) buildGlobalCollections(
 		a.statusQueue = statusQueue
 	}
 	// Now we get to collections where we can actually merge duplicate keys, so we can use nested collections
-	GlobalWorkloadServicesWithCluster := GlobalMergedWorkloadServicesCollection(
+	GlobalWorkloadServicesWithCluster := GlobalNestedWorkloadServicesCollection(
 		localCluster,
 		LocalWorkloadServices,
 		LocalWaypoints,
@@ -486,8 +486,9 @@ func (a *index) buildGlobalCollections(
 			sans = sans.Union(sets.New(svc.Service.SubjectAltNames...))
 
 			newSvcInfo := &model.ServiceInfo{
-				Service: protomarshal.Clone(svc.Service),
-				Scope:   svc.Scope,
+				Service:      protomarshal.Clone(svc.Service),
+				Scope:        svc.Scope,
+				CreationTime: svc.CreationTime,
 			}
 			newSvcInfo.Service.SubjectAltNames = sans.UnsortedList()
 			return precomputeServicePtr(newSvcInfo)
