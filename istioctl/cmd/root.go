@@ -267,7 +267,7 @@ debug and diagnose their Istio mesh.
 		})
 	}
 
-	disableCmds(rootCmd)
+	setNotSupportedWarningCmds(rootCmd)
 
 	return rootCmd
 }
