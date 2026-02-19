@@ -15,8 +15,8 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,80 +25,77 @@ import (
 // The following fields are populated at build time using -ldflags -X.
 var (
 	// List of the disabled commands separated by a semicolon.
-	// Eg: go build ... -ldflags -X PACKAGE_NAME/istioctl/cmd.disabledCmds=command1;command2;command3
-	disabledCmds string
+	// Eg: go build ... -ldflags -X PACKAGE_NAME/istioctl/cmd.notSupportedCmds=command1;command2;command3
+	notSupportedCmds string
 
 	// Optional: General message that is printed for every disabled commands.
-	// Eg: go build ... -ldflags -X 'PACKAGE_NAME/istioctl/cmd.disabledCmdsMsg=command not supported in <this_context>'
-	disabledCmdsMsg string
-
-	// Optional: Additionnal information for specific commands.
-	// Eg: go build ... -X 'PACKAGE_NAME/istioctl/cmd.disabledCmdsExtraInfo=command1=extra info about cmd1;command2=extra info about cmd2'
-	disabledCmdsExtraInfo string
+	// Eg: go build ... -ldflags -X 'PACKAGE_NAME/istioctl/cmd.notSupportedCmdsMsg=command not supported in <this_context>'
+	notSupportedCmdsMsg string
 )
 
 const (
-	defaultDisabledCmdsMsg = "command is disabled"
+	defaultNotSupportedCmdsMsg = "NOT SUPPORTED"
 )
 
-type disabledCommand struct {
+type notSupportedCommand struct {
 	name      string
 	extraInfo string
 }
 
-// newDisableCommands creates the map of disabled commands from the 'disabledCmds' build ldflag.
-func newDisableCommands(buildDisableCmds, buildExtraInfo string) map[string]*disabledCommand {
-	commands := make(map[string]*disabledCommand)
-	cmds := strings.Split(buildDisableCmds, ";")
-	extra := strings.Split(buildExtraInfo, ";")
+// newNotSupportedCommands creates the map of disabled commands from the 'notSupportedCmds' build ldflag.
+func newNotSupportedCommands(buildNotSupportedCmds string) map[string]*notSupportedCommand {
+	commands := make(map[string]*notSupportedCommand)
+	cmds := strings.Split(buildNotSupportedCmds, ";")
 
 	// Adding disabled commands into the map
 	for _, c := range cmds {
-		commands[c] = &disabledCommand{
+		commands[c] = &notSupportedCommand{
 			name: c,
 		}
 	}
 
-	// Setting the extra info for specific disabled commands
-	for _, e := range extra {
-		extraInfo := strings.SplitN(e, "=", 2)
-		if len(extraInfo) == 2 {
-			commands[extraInfo[0]].extraInfo = extraInfo[1]
-		}
-	}
 	return commands
 }
 
-// disableCmd is used to set and return a command as disabled.
-func disableCmd(cmd *cobra.Command, message, extraInfo string) *cobra.Command {
-	cmdName := cmd.Name()
-
-	msg := fmt.Sprintf("`%s` %s", cmdName, defaultDisabledCmdsMsg)
+// setWarning sets a warning message for a not supported command.
+func setWarning(cmd *cobra.Command, message string) {
+	originalShort := cmd.Short
+	msg := fmt.Sprintf("%s", defaultNotSupportedCmdsMsg)
 
 	if len(message) > 0 {
-		msg = fmt.Sprintf("`%s` %s", cmdName, message)
+		msg = fmt.Sprintf("%s", message)
 	}
 
-	if len(extraInfo) > 0 {
-		msg = fmt.Sprintf("%s. Info: %s", msg, extraInfo)
-	}
+	cmd.Short = "[" + msg + "] " + originalShort
+	originalRunE := cmd.RunE
+	originalRun := cmd.Run
 
-	return &cobra.Command{
-		Use:   cmdName,
-		Short: msg,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return errors.New(msg)
-		},
+	cmd.RunE = func(c *cobra.Command, args []string) error {
+		fmt.Fprintf(os.Stderr, "WARNING: %s\n", msg)
+
+		if originalRunE != nil {
+			return originalRunE(c, args)
+		}
+		if originalRun != nil {
+			originalRun(c, args)
+		}
+		return nil
 	}
 }
 
-// disableCmds disables all the flagged "disabled" commands.
-func disableCmds(root *cobra.Command) {
-	disabledCommands := newDisableCommands(disabledCmds, disabledCmdsExtraInfo)
-	for _, childCmd := range root.Commands() {
-		if cmd, disabled := disabledCommands[childCmd.Name()]; disabled {
-			root.RemoveCommand(childCmd)
-			root.AddCommand(disableCmd(childCmd, disabledCmdsMsg, cmd.extraInfo))
+// setWarningCmds recursively traverses the command tree and sets warnings.
+func setWarningCmds(cmd *cobra.Command, notSupportedCommands map[string]*notSupportedCommand) {
+	for _, childCmd := range cmd.Commands() {
+		if _, notSupported := notSupportedCommands[childCmd.Name()]; notSupported {
+			setWarning(childCmd, notSupportedCmdsMsg)
 		}
+		// Recursively check children of this command
+		setWarningCmds(childCmd, notSupportedCommands)
 	}
+}
+
+// setNotSupportedWarningCmds adds warnings to all the flagged "not supported" commands.
+func setNotSupportedWarningCmds(root *cobra.Command) {
+	notSupportedCommands := newNotSupportedCommands(notSupportedCmds)
+	setWarningCmds(root, notSupportedCommands)
 }
