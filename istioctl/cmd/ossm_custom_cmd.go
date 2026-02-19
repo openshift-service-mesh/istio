@@ -38,8 +38,7 @@ const (
 )
 
 type notSupportedCommand struct {
-	name      string
-	extraInfo string
+	name string
 }
 
 // newNotSupportedCommands creates the map of disabled commands from the 'notSupportedCmds' build ldflag.
@@ -60,13 +59,13 @@ func newNotSupportedCommands(buildNotSupportedCmds string) map[string]*notSuppor
 // setWarning sets a warning message for a not supported command.
 func setWarning(cmd *cobra.Command, message string) {
 	originalShort := cmd.Short
-	msg := fmt.Sprintf("%s", defaultNotSupportedCmdsMsg)
+	msg := defaultNotSupportedCmdsMsg
 
 	if len(message) > 0 {
-		msg = fmt.Sprintf("%s", message)
+		msg = message
 	}
 
-	cmd.Short = "[" + msg + "] " + originalShort
+	cmd.Short = fmt.Sprintf("[%s] %s", msg, originalShort)
 	originalRunE := cmd.RunE
 	originalRun := cmd.Run
 
