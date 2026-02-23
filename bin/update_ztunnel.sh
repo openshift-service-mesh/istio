@@ -27,7 +27,7 @@ cd "${ROOTDIR}"
 function getSha() {
   local dir result
   dir=$(mktemp -d)
-  git clone --depth=1 "https://github.com/istio/${1}.git" -b "${UPDATE_BRANCH}" "${dir}"
+  git clone --depth=1 "https://github.com/openshift-service-mesh/${1}.git" -b "${UPDATE_BRANCH}" "${dir}"
 
   result="$(cd "${dir}" && git rev-parse HEAD)"
   rm -rf "${dir}"
