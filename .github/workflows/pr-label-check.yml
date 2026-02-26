@@ -1,0 +1,81 @@
+name: PR Label Check
+
+on: [pull_request]
+
+jobs:
+  check-labels:
+    name: Check Permanent Labels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Check for permanent-change labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            console.log(`Checking labels for PR #${pr.number}: ${pr.title}`);
+
+            // Get current labels on the PR using GitHub's built-in API
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const labelNames = labels.map(label => label.name);
+            console.log(`Current labels: ${labelNames.join(', ')}`);
+
+            const hasPermanentChange = labelNames.includes('permanent-change');
+            const hasNoPermanentChange = labelNames.includes('no-permanent-change');
+
+            // Check if exactly one required label is present
+            if (!hasPermanentChange && !hasNoPermanentChange) {
+              const errorMessage = [
+                '❌ **Missing required label**',
+                '',
+                'Please add either **"permanent-change"** or **"no-permanent-change"** to this PR.',
+                '',
+                '### Use "permanent-change" for:',
+                '- OSSM product changes added directly to this repository',
+                '- Changes that will NOT be synced from upstream Istio',
+                '- OpenShift-specific features and modifications',
+                '- OSSM-specific configurations and customizations',
+                '- Changes that should be cherry-picked to release branches',
+                '',
+                '### Use "no-permanent-change" for:',
+                '- Temporary changes that will be removed in the future',
+                '- Changes that should NOT be cherry-picked to release branches',
+                '- Experimental or short-term modifications',
+                '- Changes that will be replaced by upstream sync',
+                '',
+                '_This labeling helps release maintainers identify which changes to cherry-pick into new release branches._',
+                '',
+                '**Need help?** Check the [contributing guidelines](./CONTRIBUTING.md) for more details.'
+              ].join('\n');
+
+              core.setFailed(errorMessage);
+              return;
+            }
+
+            if (hasPermanentChange && hasNoPermanentChange) {
+              const errorMessage = [
+                '❌ **Conflicting labels detected**',
+                '',
+                'Please use only **one** of the following labels, not both:',
+                '- "permanent-change"',
+                '- "no-permanent-change"',
+                '',
+                '_Remove one of the conflicting labels to proceed._'
+              ].join('\n');
+
+              core.setFailed(errorMessage);
+              return;
+            }
+
+            // Success case
+            const chosenLabel = hasPermanentChange ? 'permanent-change' : 'no-permanent-change';
+            console.log(`✅ PR labeled with: ${chosenLabel}`);

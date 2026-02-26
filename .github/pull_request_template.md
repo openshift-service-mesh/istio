@@ -24,3 +24,10 @@
 **Please check any characteristics that apply to this pull request.**
 
 - [ ] Does not have any [user-facing](https://github.com/istio/istio/tree/master/releasenotes#when-to-add-release-notes) changes. This may include CLI changes, API changes, behavior changes, performance improvements, etc.
+
+**Required PR Label:** Please add one of the following labels to this PR:
+
+- `permanent-change`: For OSSM-specific changes that should be cherry-picked to release branches
+- `no-permanent-change`: For temporary changes that will be removed and should NOT be cherry-picked
+
+This labeling helps release maintainers identify which changes to include in new release branches.
