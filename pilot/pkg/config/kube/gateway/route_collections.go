@@ -30,6 +30,7 @@ import (
 
 	istio "istio.io/api/networking/v1alpha3"
 	networkingclient "istio.io/client-go/pkg/apis/networking/v1"
+	"istio.io/istio/pilot/pkg/config/kube/gatewaycommon"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
@@ -213,10 +214,11 @@ func HTTPRouteCollection(
 
 	finalVirtualServices := mergeHTTPRoutes(baseVirtualServices, opts.WithName("HTTPRouteMerged")...)
 	return RouteResult[*gatewayv1.HTTPRoute, gatewayv1.HTTPRouteStatus]{
-		VirtualServices:  finalVirtualServices,
-		RouteAttachments: routeCount,
-		Status:           status,
-		Ancestors:        ancestorBackends,
+		VirtualServices:     finalVirtualServices,
+		BaseVirtualServices: baseVirtualServices,
+		RouteAttachments:    routeCount,
+		Status:              status,
+		Ancestors:           ancestorBackends,
 	}
 }
 
@@ -237,7 +239,7 @@ func extractAncestorBackends[RT, BT any](
 	}
 	gateways := sets.Set[types.NamespacedName]{}
 	for _, r := range prefs {
-		ref := normalizeReference(r.Group, r.Kind, gvk.KubernetesGateway)
+		ref := gatewaycommon.NormalizeReference(r.Group, r.Kind, gvk.KubernetesGateway)
 		if ref != gvk.KubernetesGateway {
 			continue
 		}
@@ -427,10 +429,11 @@ func GRPCRouteCollection(
 
 	finalVirtualServices := mergeHTTPRoutes(baseVirtualServices, opts.WithName("GRPCRouteMerged")...)
 	return RouteResult[*gatewayv1.GRPCRoute, gatewayv1.GRPCRouteStatus]{
-		VirtualServices:  finalVirtualServices,
-		RouteAttachments: routeCount,
-		Status:           status,
-		Ancestors:        ancestorBackends,
+		VirtualServices:     finalVirtualServices,
+		BaseVirtualServices: baseVirtualServices,
+		RouteAttachments:    routeCount,
+		Status:              status,
+		Ancestors:           ancestorBackends,
 	}
 }
 
@@ -685,14 +688,14 @@ func (r RouteContext) LookupHostname(hostname string, namespace string) *model.S
 }
 
 type RouteContextInputs struct {
-	Grants          ReferenceGrants
+	Grants          gatewaycommon.ReferenceGrants
 	RouteParents    RouteParents
 	DomainSuffix    string
 	Services        krt.Collection[*corev1.Service]
 	Namespaces      krt.Collection[*corev1.Namespace]
 	ServiceEntries  krt.Collection[*networkingclient.ServiceEntry]
 	InferencePools  krt.Collection[*inferencev1.InferencePool]
-	internalContext krt.RecomputeProtected[*atomic.Pointer[GatewayContext]]
+	internalContext krt.RecomputeProtected[*atomic.Pointer[gatewaycommon.GatewayContext]]
 }
 
 func (i RouteContextInputs) WithCtx(krtctx krt.HandlerContext) RouteContext {
@@ -732,6 +735,8 @@ func buildMeshAndGatewayRoutes[T any](parentRefs []routeParentReference, convert
 type RouteResult[I controllers.Object, IStatus any] struct {
 	// VirtualServices are the primary output that configures the internal routing logic
 	VirtualServices krt.Collection[config.Config]
+	// BaseVirtualServices are the pre-merge VirtualServices, used for cross-route-type merging
+	BaseVirtualServices krt.Collection[RouteWithKey]
 	// RouteAttachments holds information about parent attachment to routes, used for computed the `attachedRoutes` count.
 	RouteAttachments krt.Collection[RouteAttachment]
 	// Status stores the status reports for the incoming object
