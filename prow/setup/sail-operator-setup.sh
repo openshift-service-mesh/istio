@@ -199,6 +199,9 @@ function patch_config() {
     yq eval '.spec.profile = "ambient"' -i "$WORKDIR/$SAIL_IOP_FILE"
     yq eval ".spec.values.pilot.trustedZtunnelNamespace = \"$ZTUNNEL_NAMESPACE\"" -i "$WORKDIR/$SAIL_IOP_FILE"
 
+    # Add discoverySelectors to match Helm behavior
+    yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchExpressions": [{"key": "istio.io/test-exclude-namespace", "operator": "DoesNotExist"}]}]' -i "$WORKDIR/$SAIL_IOP_FILE"
+
     # Add configurations for ServiceEntry/DNS resolution
     yq eval '.spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"' -i "$WORKDIR/$SAIL_IOP_FILE"
 
