@@ -38,7 +38,6 @@ import (
 	sec_model "istio.io/istio/pilot/pkg/security/model"
 	"istio.io/istio/pilot/pkg/util/protoconv"
 	"istio.io/istio/pilot/pkg/xds/endpoints"
-	xdsfilters "istio.io/istio/pilot/pkg/xds/filters"
 	v3 "istio.io/istio/pilot/pkg/xds/v3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/host"
@@ -79,13 +78,12 @@ var (
 	}
 
 	GetEncapCluster = func(p *model.Proxy) *cluster.Cluster {
-		name := ConnectOriginate
-		h2 := true
-		if isEastWestGateway(p) {
-			name = ForwardInnerConnect
-			h2 = false
+		if isAmbientEastWestGateway(p) {
+			return buildInternalUpstreamCluster(EncapClusterName, ForwardInnerConnect, false)
 		}
-		return buildInternalUpstreamCluster(EncapClusterName, name, h2)
+		c := buildInternalUpstreamCluster(EncapClusterName, ConnectOriginate, true)
+		applyBaggageMetadataDiscovery(c)
+		return c
 	}
 )
 
@@ -107,7 +105,7 @@ func (configgen *ConfigGeneratorImpl) buildWaypointInboundClusters(
 	clusters = append(clusters, cb.buildWaypointInboundVIP(proxy, svcs, push.Mesh)...)
 
 	// Upstream of the "encap" listener.
-	if features.EnableAmbientMultiNetwork && isEastWestGateway(proxy) {
+	if features.EnableAmbientMultiNetwork && isAmbientEastWestGateway(proxy) {
 		// Creates "blackhole" cluster to avoid failures if no globally scoped services exist
 		clusters = append(clusters, cb.buildWaypointForwardInnerConnect(), cb.buildBlackHoleCluster())
 	} else {
@@ -148,7 +146,7 @@ func (cb *ClusterBuilder) buildWaypointInboundVIPCluster(
 	drConfig *config.Config,
 ) *cluster.Cluster {
 	// TODO: is this enough? Probably since we validate no extra listeners are present in the conversion layer
-	terminate := isEastWestGateway(proxy)
+	terminate := isAmbientEastWestGateway(proxy)
 	clusterName := model.BuildSubsetKey(model.TrafficDirectionInboundVIP, subset, svc.Hostname, port.Port)
 
 	var localCluster *clusterWrapper
@@ -232,7 +230,6 @@ func (cb *ClusterBuilder) buildWaypointInboundVIPCluster(
 		localCluster.cluster.LbPolicy = cluster.Cluster_CLUSTER_PROVIDED
 	}
 	maybeApplyEdsConfig(localCluster.cluster)
-	cb.maybeApplyBaggageMetadataDiscovery(localCluster.cluster)
 
 	// TLS and PROXY are more involved, since these impact the transport socket which is customized for HBONE.
 	opts := &buildClusterOpts{
@@ -245,11 +242,13 @@ func (cb *ClusterBuilder) buildWaypointInboundVIPCluster(
 		direction:      model.TrafficDirectionInboundVIP,
 	}
 	transportSocket := util.RawBufferTransport()
+	disableBaggageDiscovery := false
 	if tlsContext := buildWaypointTLSContext(opts, tls); tlsContext != nil {
 		transportSocket = &core.TransportSocket{
 			Name:       wellknown.TransportSocketTLS,
 			ConfigType: &core.TransportSocket_TypedConfig{TypedConfig: protoconv.MessageToAny(tlsContext)},
 		}
+		disableBaggageDiscovery = true
 	}
 	if proxyProtocol != nil {
 		// Wrap the existing transport socket. Note this could be RawBuffer or TLS, depending on other config
@@ -263,12 +262,18 @@ func (cb *ClusterBuilder) buildWaypointInboundVIPCluster(
 				),
 			},
 		}
+		disableBaggageDiscovery = true
 	}
 	// no TLS, we are just going to internal address
 	localCluster.cluster.TransportSocketMatches = nil
 
 	// Wrap the transportSocket with internal listener upstream. Note this could be a raw buffer, PROXY, TLS, etc
 	localCluster.cluster.TransportSocket = util.WaypointInternalUpstreamTransportSocket(transportSocket)
+
+	cb.maybeApplyBaggageMetadataDiscovery(localCluster.cluster)
+	if disableBaggageDiscovery {
+		cb.maybeDisableBaggageDiscovery(localCluster.cluster)
+	}
 
 	return localCluster.build()
 }
@@ -323,7 +328,7 @@ func (cb *ClusterBuilder) buildWaypointInboundVIP(proxy *model.Proxy, svcs map[h
 				log.Warnf("skipping waypoint VIP cluster for TLS protocol for service %s with DynamicDNS resolution since the feature is disabled", svc.Hostname)
 				continue
 			}
-			if isEastWestGateway(proxy) {
+			if isAmbientEastWestGateway(proxy) {
 				// East-west gateways don't respect DestinationRule, so don't read it here
 				// TODO: Confirm this decision
 				clusters = append(clusters, cb.buildWaypointInboundVIPCluster(proxy, svc, *port, "tcp", mesh, nil, nil))
@@ -577,14 +582,5 @@ func (cb *ClusterBuilder) h2connectUpgradeWithNoPooling() map[string]*anypb.Any 
 				},
 			}},
 		}),
-	}
-}
-
-func (cb *ClusterBuilder) maybeApplyBaggageMetadataDiscovery(c *cluster.Cluster) {
-	if features.EnableAmbientBaggage {
-		if c.GetType() != cluster.Cluster_EDS {
-			return
-		}
-		c.Filters = append(c.Filters, xdsfilters.WaypointClusterBaggagePeerMetadata)
 	}
 }
