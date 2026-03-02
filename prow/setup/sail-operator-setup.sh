@@ -167,23 +167,11 @@ function patch_config() {
 SECRET_NAME="istio-ca-secret"
 WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
 
-function install_validatingwebhook(){
-  # Workaround until https://github.com/istio-ecosystem/sail-operator/issues/749 is fixed
-  CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
+    # Add discoverySelectors to match Helm behavior
+    yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchExpressions": [{"key": "istio.io/test-exclude-namespace", "operator": "DoesNotExist"}]}]' -i "$WORKDIR/$SAIL_IOP_FILE"
 
-  # If not found, sleep for 5 seconds and retry once
-  if [ -z "$CA_BUNDLE" ]; then
-    echo "Secret not found. Sleeping for 10 seconds before retrying..."
-    sleep 10
-    
-    # Retry once
-    CA_BUNDLE=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o yaml 2>/dev/null | grep "ca-cert" | awk '{print $2}')
-    
-    if [ -z "$CA_BUNDLE" ]; then
-      echo "Secret still not found after retry. Exiting."
-      exit 1
-    fi
-  fi  
+    # Add configurations for ServiceEntry/DNS resolution
+    yq eval '.spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"' -i "$WORKDIR/$SAIL_IOP_FILE"
 
     echo "Configured Ambient mode for Istio."
   fi
