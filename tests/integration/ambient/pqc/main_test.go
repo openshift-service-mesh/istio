@@ -365,37 +365,32 @@ spec:
 					ApplyOrFail(t)
 
 				rootCert := file.AsStringOrFail(t, path.Join(env.IstioSrc, "tests/testdata/certs/dns/root-cert.pem"))
-				caConfigMap := `
+				caSecret := `
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
   name: external-ca-cert
-data:
+stringData:
   ca.crt: |
 {{.RootCert | indent 4}}`
 				t.ConfigIstio().
-					Eval(internalNs.Name(), map[string]any{"RootCert": rootCert}, caConfigMap).
+					Eval(egressNamespace.Name(), map[string]any{"RootCert": rootCert}, caSecret).
 					ApplyOrFail(t, apply.CleanupConditionally)
 
-				backendTLSPolicy := `
-apiVersion: gateway.networking.k8s.io/v1
-kind: BackendTLSPolicy
+				destinationRule := `
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
 metadata:
   name: external-tls
 spec:
-  targetRefs:
-  - group: networking.istio.io
-    kind: ServiceEntry
-    name: external
-    sectionName: http
-  validation:
-    hostname: server.default.svc
-    caCertificateRefs:
-    - kind: ConfigMap
-      name: external-ca-cert
-      group: ""`
+  host: server.{{.ExternalNamespace}}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: server.default.svc
+      credentialName: external-ca-cert`
 				t.ConfigIstio().
-					YAML(internalNs.Name(), backendTLSPolicy).
+					Eval(internalNs.Name(), map[string]string{"ExternalNamespace": externalNs.Name()}, destinationRule).
 					ApplyOrFail(t, apply.CleanupConditionally)
 
 				httpRoute := fmt.Sprintf(`
