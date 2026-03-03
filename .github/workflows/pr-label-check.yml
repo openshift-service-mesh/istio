@@ -6,8 +6,6 @@ jobs:
   check-labels:
     name: Check Permanent Labels
     runs-on: ubuntu-latest
-    # Skip this check for automated PRs containing "Automator:"
-    if: "!contains(github.event.pull_request.title, 'Automator:')"
     permissions:
       contents: read
       pull-requests: read
