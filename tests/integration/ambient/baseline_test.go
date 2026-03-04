@@ -3773,7 +3773,7 @@ func restartZtunnel(t framework.TestContext, c cluster.Cluster) {
 			}
 		}`, time.Now().Format(time.RFC3339)) // e.g., “2006-01-02T15:04:05Z07:00”
 	ztunnelNS := i.Settings().ZtunnelNamespace
-	ds := c.Kube().AppsV1().DaemonSets(ztunnelNS)
+	ds := t.Clusters().Default().Kube().AppsV1().DaemonSets(ztunnelNS)
 	_, err := ds.Patch(context.Background(), "ztunnel", types.StrategicMergePatchType, []byte(patchData), patchOpts)
 	if err != nil {
 		t.Fatal(err)
@@ -3909,37 +3909,68 @@ func TestZtunnelSecureMetrics(t *testing.T) {
 					tc.Fatal("No captured client instance found for ZtunnelSecureMetrics test")
 				}
 
-				ztunnelNS := i.Settings().ZtunnelNamespace
-				k8sPods := c.Kube().CoreV1().Pods(ztunnelNS)
+			ztunnelNS := i.Settings().ZtunnelNamespace
+			k8sPods := tc.Clusters().Default().Kube().CoreV1().Pods(ztunnelNS)
 
-				// Get ztunnel pod info
-				ztunnelPods, err := k8sPods.List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ztunnel"})
-				if err != nil || len(ztunnelPods.Items) == 0 {
-					tc.Fatalf("Failed to list ztunnel pods or none found: %v", err)
-				}
-				ztunnelPod := ztunnelPods.Items[0] // Pick the first ztunnel pod
-				ztunnelPodIP := ztunnelPod.Status.PodIP
-				ztunnelMetricsPort := 15020 // Default ztunnel metrics port
-				ztunnelServiceAccount := ztunnelPod.Spec.ServiceAccountName
-				trustDomain := util.GetTrustDomain(c, ztunnelNS)
-				// Extract ztunnel app labels for canonical service/revision
-				ztunnelAppLabel := ztunnelPod.Labels["app"]
-				ztunnelVersionLabel := ztunnelPod.Labels["app.kubernetes.io/version"]
+			// Get ztunnel pod info
+			ztunnelPods, err := k8sPods.List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ztunnel"})
+			if err != nil || len(ztunnelPods.Items) == 0 {
+				tc.Fatalf("Failed to list ztunnel pods or none found: %v", err)
+			}
+			ztunnelPod := ztunnelPods.Items[0] // Pick the first ztunnel pod
+			ztunnelPodIP := ztunnelPod.Status.PodIP
+			ztunnelMetricsPort := 15020 // Default ztunnel metrics port
+			ztunnelServiceAccount := ztunnelPod.Spec.ServiceAccountName
+			trustDomain := util.GetTrustDomain(tc.Clusters().Default(), ztunnelNS)
+			// Extract ztunnel app labels for canonical service/revision
+			ztunnelAppLabel := ztunnelPod.Labels["app"]
+			ztunnelVersionLabel := ztunnelPod.Labels["app.kubernetes.io/version"]
 
 				tc.Logf("Using client %s (%s) to query ztunnel %s (%s) metrics on port %d. Expecting transport HBONE.",
 					clientInstance.Config().Service, clientInstance.WorkloadsOrFail(tc)[0].PodName(), ztunnelPod.Name, ztunnelPodIP, ztunnelMetricsPort)
 
-				// Client calls ztunnel's `/metrics` endpoint.
-				// This request should be intercepted by clientInstance's ztunnel,
-				// and an HBONE connection made to the target ztunnel's inbound (15008),
-				// which then proxies to its internal metrics server (15020).
-				opts := echo.CallOptions{
-					Address: ztunnelPodIP,
-					Port:    echo.Port{ServicePort: ztunnelMetricsPort, Name: "http-ztunnel-metrics", Protocol: protocol.HTTP},
-					Scheme:  scheme.HTTP,
-					HTTP:    echo.HTTP{Path: "/metrics"},
-					Check:   check.And(check.OK(), check.BodyContains("# TYPE")), // Check for Prometheus format
-				}
+			// Client calls ztunnel's `/metrics` endpoint.
+			// This request should be intercepted by clientInstance's ztunnel,
+			// and an HBONE connection made to the target ztunnel's inbound (15008),
+			// which then proxies to its internal metrics server (15020).
+			opts := echo.CallOptions{
+				Address: ztunnelPodIP,
+				Port:    echo.Port{ServicePort: ztunnelMetricsPort, Name: "http-ztunnel-metrics", Protocol: protocol.HTTP},
+				Scheme:  scheme.HTTP,
+				HTTP:    echo.HTTP{Path: "/metrics"},
+				Check:   check.And(check.OK(), check.BodyContains("# TYPE")), // Check for Prometheus format
+			}
+			clientInstance.CallOrFail(tc, opts)
+			tc.Logf("Successfully called ztunnel /metrics endpoint via HTTP from %s", clientInstance.WorkloadsOrFail(tc)[0].PodName())
+
+			// Verify Prometheus L4 telemetry for the HBONE connection to ztunnel
+			// The ztunnel pod itself is the destination workload for this specific HBONE connection.
+			// sourceWorkloadPodName := clientInstance.WorkloadsOrFail(tc)[0].PodName() // For istio_tcp_connections_opened_total, source_workload is pod name
+			sourceNamespace := clientInstance.Config().Namespace.Name()
+			sourceSA := clientInstance.Config().AccountName()
+			sourceWorkloadLabel := clientInstance.Config().Service + "-" + clientInstance.Config().Version
+
+			query := prometheus.Query{
+				Metric: "istio_tcp_connections_opened_total",
+				Labels: map[string]string{
+					"reporter":                       "destination",
+					"connection_security_policy":     "mutual_tls",
+					"destination_workload_namespace": ztunnelNS,
+					"destination_workload":           "ztunnel",
+					"destination_principal":          fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", trustDomain, ztunnelNS, ztunnelServiceAccount),
+					"destination_canonical_service":  ztunnelAppLabel,
+					"destination_canonical_revision": ztunnelVersionLabel,
+					"source_workload_namespace":      sourceNamespace,
+					"source_workload":                sourceWorkloadLabel,
+					"source_principal":               fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", trustDomain, sourceNamespace, sourceSA),
+					"source_canonical_service":       clientInstance.Config().Service,
+					"source_canonical_revision":      clientInstance.Config().Version,
+				},
+			}
+
+			tc.Logf("Prometheus query for ztunnel secure metrics: %#v", query)
+
+			retry.UntilSuccessOrFail(tc, func() error {
 				clientInstance.CallOrFail(tc, opts)
 				tc.Logf("Successfully called ztunnel /metrics endpoint via HTTP from %s", clientInstance.WorkloadsOrFail(tc)[0].PodName())
 
