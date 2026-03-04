@@ -51,6 +51,8 @@ INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
+DEPLOY_GATEWAY_API="false"
+IBM="${IBM:-"false"}"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -205,6 +207,11 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.openshift")
 
 helm_values="global.platform=openshift"
+
+# IBM specific modifications
+if [ "${IBM}" == "true" ]; then
+    base_cmd+=("--istio.test.skipTProxy=true")
+fi
 
 # Gateway Conformance Test related modifications
 if [ "${TEST_SUITE}" == "pilot" ]; then

@@ -32,6 +32,7 @@ WD=$(cd "$WD"; pwd)
 TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
 SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
+IBM="${IBM:-"false"}"
 
 function setup_internal_registry() {
   # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target. 
@@ -142,6 +143,15 @@ __EOF__
 
 # Deploy MetalLB in the OCP cluster and configure IP address pool
 function deployMetalLB() {
+  # Check if MetalLB is already deployed
+  echo "Checking if MetalLB is already deployed..."
+  if oc get metallb metallb -n metallb-system && oc get ipaddresspool default -n metallb-system &> /dev/null; then
+    echo "MetalLB is already deployed (MetalLB CR and IPAddressPool CR exist), skipping..."
+    return 0
+  else
+    echo "MetalLB CR or IPAddressPool CR is not deployed, deploying..."
+  fi
+
   # Create the metallb-system namespace
   echo '
 apiVersion: v1
@@ -160,7 +170,8 @@ spec:
   channel: stable
   name: metallb-operator
   source: redhat-operators
-  sourceNamespace: openshift-marketplace' | oc apply -f -
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic' | oc apply -f -
 
   # Check operator Phase is Succeeded
 # shellcheck disable=SC2016
@@ -204,6 +215,17 @@ spec:
 
   # Check the IP address pool is created
   timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until oc get IPAddressPool default -n metallb-system; do sleep 5; done && echo "The IP address pool has been created."'
+  
+  # IBM specific modifications
+  if [ "${IBM}" == "true" ]; then
+    # Create L2Advertisement CR
+    echo '
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system' | oc apply -f -
+  fi
 
   echo "MetalLB has been deployed and configured with the IP address pool."
 }
