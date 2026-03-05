@@ -228,6 +228,7 @@ if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     # Stops flaky runs in public clouds
     base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
+    base_cmd+=("--istio.test.kube.ztunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}")
 
     # Set local gateway mode for Ambient execution
     oc patch networks.operator.openshift.io cluster --type=merge \
