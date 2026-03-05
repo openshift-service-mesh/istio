@@ -58,6 +58,7 @@ func TestMain(m *testing.M) {
 		NewSuite(m).
 		Label(label.CustomSetup).
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
+			ctx.Settings().EchoImage = "quay.io/sail-dev/app:release-1.28"
 			cfg.ControlPlaneValues = `
 values:
   pilot:
