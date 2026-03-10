@@ -140,6 +140,7 @@ function install_ztunnel() {
   cp "$ZTUNNEL" "$TMP_ZTUNNEL"
   yq -i ".spec.namespace=\"$ZTUNNEL_NAMESPACE\"" "$TMP_ZTUNNEL"
   yq -i ".spec.version=\"$ISTIO_VERSION\"" "$TMP_ZTUNNEL"
+  patch_ztunnel_config
   oc apply -f "$TMP_ZTUNNEL"
   echo "ZTunnel created."
 }
@@ -272,6 +273,12 @@ function patch_gateway_config() {
     ' -i "${WORKDIR}/istio-ingressgateway.yaml"
 
     echo "Added HTTP3/QUIC port configuration to ingress gateway."
+  fi
+}
+
+function patch_ztunnel_config() {
+  if [[ "$WORKDIR" == *"-ambient-pqc-"* ]]; then
+      yq -i '.spec.values.ztunnel.env.COMPLIANCE_POLICY="pqc"' "$TMP_ZTUNNEL"
   fi
 }
 
