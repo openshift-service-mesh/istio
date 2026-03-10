@@ -295,7 +295,7 @@ func newKube(ctx resource.Context, cfg Config) (Instance, error) {
 			scopes.Framework.Infof("=== FAILED: Execute Control Plane Installer ===")
 			return nil, err
 		}
-		scopes.Framework.Debugf("Control Plane Installer output:\n%s", string(output))
+		scopes.Framework.Infof("Control Plane Installer output:\n%s", string(output))
 		scopes.Framework.Infof("=== DONE: Execute Control Plane Installer ===")
 	}
 
