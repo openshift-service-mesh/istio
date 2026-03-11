@@ -183,6 +183,10 @@ spec:
           valueFrom:
             resourceFieldRef:
               resource: limits.cpu
+        {{- if .CompliancePolicy }}
+        - name: COMPLIANCE_POLICY
+          value: "{{ .CompliancePolicy }}"
+        {{- end }}
         - name: ISTIO_META_CLUSTER_ID
           value: "{{ valueOrDefault .Values.global.multiCluster.clusterName `Kubernetes` }}"
         {{- $network := valueOrDefault (index .InfrastructureLabels `topology.istio.io/network`) .Values.global.network }}
