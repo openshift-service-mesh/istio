@@ -259,6 +259,7 @@ function patch_ztunnel_config() {
   if [[ "$WORKDIR" == *"ambient-pqc"* ]]; then
       yq -i '.spec.values.ztunnel.env.COMPLIANCE_POLICY="pqc"' "$TMP_ZTUNNEL"
   fi
+  yq -i '.spec.values.ztunnel.env.TLS12_ENABLED="true"' "$TMP_ZTUNNEL"
 }
 
 # Install ingress and egress gateways
