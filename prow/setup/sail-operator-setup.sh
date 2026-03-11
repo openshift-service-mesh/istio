@@ -119,6 +119,7 @@ function install_ztunnel() {
   cp "$ZTUNNEL" "$TMP_ZTUNNEL"
   yq -i ".spec.namespace=\"$ZTUNNEL_NAMESPACE\"" "$TMP_ZTUNNEL"
   yq -i ".spec.version=\"$ISTIO_VERSION\"" "$TMP_ZTUNNEL"
+  yq -i ".spec.values.ztunnel.env.TLS12_ENABLED=\"true\"" "$TMP_ZTUNNEL"
   oc apply -f "$TMP_ZTUNNEL"
   echo "ZTunnel created."
 }
