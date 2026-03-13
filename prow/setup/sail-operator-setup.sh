@@ -243,6 +243,12 @@ function patch_gateway_config() {
   fi
 }
 
+function patch_ztunnel_config() {
+  if [[ "$WORKDIR" == *"ambient-pqc"* ]]; then
+      yq -i '.spec.values.ztunnel.env.COMPLIANCE_POLICY="pqc"' "$TMP_ZTUNNEL"
+  fi
+}
+
 # Install ingress and egress gateways
 function install_gateways() {
   helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
