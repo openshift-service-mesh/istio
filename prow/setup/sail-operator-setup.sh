@@ -256,7 +256,7 @@ function patch_gateway_config() {
 }
 
 function patch_ztunnel_config() {
-  if [[ "$WORKDIR" == *"-ambient-pqc-"* ]]; then
+  if [[ "$WORKDIR" == *"ambient-pqc"* ]]; then
       yq -i '.spec.values.ztunnel.env.COMPLIANCE_POLICY="pqc"' "$TMP_ZTUNNEL"
   fi
 }
