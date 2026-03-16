@@ -30,7 +30,6 @@ import (
 	xdsfake "istio.io/istio/pilot/test/xds"
 	"istio.io/istio/pkg/spiffe"
 	"istio.io/istio/pkg/test/util/assert"
-	"istio.io/istio/pkg/util/sets"
 )
 
 func TestSyncz(t *testing.T) {
@@ -264,7 +263,7 @@ func TestDebugGenPassesNamespaceContext(t *testing.T) {
 	}
 	watchedRes := &model.WatchedResource{
 		TypeUrl:       v3.DebugType,
-		ResourceNames: sets.New("config_dump"),
+		ResourceNames: []string{"config_dump"},
 	}
 
 	_, _, err := gen.Generate(proxy, watchedRes, nil)
