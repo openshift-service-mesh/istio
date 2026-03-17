@@ -55,6 +55,9 @@ import (
 	"istio.io/istio/pkg/workloadapi"
 )
 
+// CallerNamespaceKey is used to store caller namespace in request context
+type CallerNamespaceKey struct{}
+
 var indexTmpl = template.Must(template.New("index").Parse(`<html>
 <head>
 <title>Pilot Debug Console</title>
