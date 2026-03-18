@@ -596,8 +596,15 @@ func (p *XdsProxy) initDownstreamServer() error {
 		return err
 	}
 	// TODO: Expose keepalive options to agent cmd line flags.
+	// Use relaxed keepalive for the downstream UDS connection to envoy.
+	// The default keepalive (30s ping interval + 10s timeout) can kill the connection
+	// when envoy is slow to process large xDS updates (e.g., many clusters with FIPS
+	// TLS contexts), since envoy processes xDS and HTTP/2 PINGs on the same main
+	// thread.
+	keepaliveOpt := istiokeepalive.DefaultOption()
+	keepaliveOpt.Time = 2 * time.Minute
 	opts := p.downstreamGrpcOptions
-	opts = append(opts, istiogrpc.ServerOptions(istiokeepalive.DefaultOption(), xdspkg.RecordRecvSize)...)
+	opts = append(opts, istiogrpc.ServerOptions(keepaliveOpt, xdspkg.RecordRecvSize)...)
 	grpcs := grpc.NewServer(opts...)
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcs, p)
 	reflection.Register(grpcs)
