@@ -48,7 +48,7 @@ spec:
         - -d
         - 15090,15021,15020
         - --log_output_level=default:info
-        image: registry.istio.io/testing/proxyv2:latest
+        image: gcr.io/istio-testing/proxyv2:latest
         name: istio-init
         resources:
           limits:
@@ -104,7 +104,7 @@ spec:
         - name: ISTIO_CPU_LIMIT
           valueFrom:
             resourceFieldRef:
-              divisor: "1"
+              divisor: "0"
               resource: limits.cpu
         - name: PROXY_CONFIG
           value: |
@@ -118,12 +118,12 @@ spec:
         - name: GOMEMLIMIT
           valueFrom:
             resourceFieldRef:
-              divisor: "1"
+              divisor: "0"
               resource: limits.memory
         - name: GOMAXPROCS
           valueFrom:
             resourceFieldRef:
-              divisor: "1"
+              divisor: "0"
               resource: limits.cpu
         - name: ISTIO_META_CLUSTER_ID
           value: Kubernetes
@@ -141,7 +141,7 @@ spec:
           value: cluster.local
         - name: TRUST_DOMAIN
           value: cluster.local
-        image: registry.istio.io/testing/proxyv2:latest
+        image: gcr.io/istio-testing/proxyv2:latest
         lifecycle:
           preStop:
             exec:
