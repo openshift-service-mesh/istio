@@ -104,8 +104,8 @@ revision: mesh`, meshInstanceNS.Name())
 		})).
 		SetupParallel(
 			// application namespaces are labeled according to the required control plane ownership.
-			namespace.Setup(&echoNS, namespace.Config{Prefix: "echo1", Inject: true, Revision: "mesh", Labels: nil}),
-			namespace.Setup(&externalNS, namespace.Config{Prefix: "external", Inject: false})).
+			namespace.Setup(&echoNS, namespace.Config{Prefix: "echo1", Inject: true, Revision: "mesh", Labels: map[string]string{"istio-instance": "mesh"}}),
+			namespace.Setup(&externalNS, namespace.Config{Prefix: "external", Inject: false, Labels: map[string]string{"istio-instance": "gateway"}})).
 		SetupParallel(
 			deployment.SetupSingleNamespace(&apps, deployment.Config{
 				Namespaces: []namespace.Getter{
