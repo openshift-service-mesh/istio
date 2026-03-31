@@ -63,28 +63,29 @@ var GlobalYAMLWrites = atomic.NewUint64(0)
 // When DestinationRule for the whole mesh is applied, the proxy can validate 400+ keys, which can take ~1-2minutes.
 // Tests need to wait until the proxy is ready again.
 // After each creation/deletion of DestinationRule, we need to wait till proxy is updated.
-// istio-ingress proxy takes the longest according to observation, so only those pods are checked.
+// istio-ingress proxy and sidecar demo app take the longest according to observation, so only those pods are checked.
 func sleepIfDestinationRuleOnFips(ctx resource.Context, yamlFiles []string, operation string) {
 	for _, yamlFile := range yamlFiles {
 		content, err := os.ReadFile(yamlFile)
 		if err == nil && ctx.Settings().Fips && strings.Contains(string(content), "kind: DestinationRule") {
 			scopes.Framework.Infof("DestinationRule %s was %s, checking if istio-ingress proxy is ready", yamlFile, operation)
-			checkIngressProxyReady(ctx)
+			checkIngressProxyReady(ctx, "istio=ingressgateway")
+			checkIngressProxyReady(ctx, "app=sidecar")
 			return
 		}
 	}
 }
 
-// The function gets ingress gateway pods from the clusters and checks if the proxies return configuration via pod exec
+// The function gets pods according to label selector from the clusters and checks if the proxies return configuration via pod exec
 // if yes, the proxy is considered as ready
 // if not (timeouted after 1 minute), the proxy is considered as notReady/updating proxy config.
 // It tries 4 times (4 minutes max)
-func checkIngressProxyReady(ctx resource.Context) {
+func checkIngressProxyReady(ctx resource.Context, labelselecter string) {
 	scopes.Framework.Infof("Checking ingress gateway proxies are ready")
 	time.Sleep(10 * time.Second)
 	for _, cl := range ctx.Clusters() {
 		pods, err := cl.Kube().CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: "istio=ingressgateway",
+			LabelSelector: labelselecter,
 		})
 		if err != nil {
 			scopes.Framework.Warnf("failed getting ingress gateway pods for cluster %s: %v", cl.Name(), err)
