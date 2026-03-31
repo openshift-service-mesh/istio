@@ -84,6 +84,9 @@ ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
 INGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/ingress-gateway-values.yaml"
 EGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/egress-gateway-values.yaml"
 
+# Skip installing gateways
+INSTALL_GATEWAYS="${INSTALL_GATEWAYS:="true"}"
+
 CONVERTER_ADDRESS="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/tools/configuration-converter.sh"
 CONVERTER_SCRIPT=$(basename "$CONVERTER_ADDRESS")
 
@@ -161,9 +164,49 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured pilot.env for QUIC tests."
   fi
+
+  if [[ "$WORKDIR" == *"gatewayinstance"* ]]; then
+    # There are two meshes in this test in different namespaces. Set namespace according to that
+    DESIRED_NAMESPACE="$(yq eval '.spec.namespace' "$IOP_FILE")"
+    yq eval ".spec.namespace = \"$DESIRED_NAMESPACE\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+    # Set name of Istio according to the .spec.revision (converter uses `default` which is valid only for single mesh)
+    ORIGINAL_NAME="$(yq eval '.spec.revision' "$IOP_FILE")"
+    yq eval ".metadata.name = \"$ORIGINAL_NAME\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+  
+    if [[ "$ORIGINAL_NAME" == *"mesh"* ]] ; then
+      # since mesh is in different namespace as istio-system, change NAMESPACE for ingress/egress deployment below
+      INSTALL_GATEWAYS=true
+      NAMESPACE="${DESIRED_NAMESPACE}"
+      echo "Override istio-system NAMESPACE to $NAMESPACE for pilot/gatewayinstance istio control plane"
+      # we must limit only specific ns via discovery selectors
+      yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchLabels": {"istio-instance": "mesh"}}]' -i "$WORKDIR/$SAIL_IOP_FILE"
+    else
+      # we don't want gateways in namespace where gateway mesh is
+      INSTALL_GATEWAYS=false
+      # we must limit only specific ns via discovery selectors
+      yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchLabels": {"istio-instance": "gateway"}}]' -i "$WORKDIR/$SAIL_IOP_FILE"
+    fi
+  fi
 }
 
 function patch_gateway_config() {
+  if [[ "$WORKDIR" == *"gatewayinstance"* ]]; then
+    # mesh has different name. Remove `sidecar.istio.io/inject`` and add `istio.io/rev: mesh`` label/annotation
+    yq eval '
+      del(.spec.template.metadata.annotations["sidecar.istio.io/inject"]) |
+      del(.spec.template.metadata.labels["sidecar.istio.io/inject"]) |
+      .spec.template.metadata.annotations["istio.io/rev"] = "mesh" |
+      .spec.template.metadata.labels["istio.io/rev"] = "mesh"
+    ' -i "${WORKDIR}/istio-egressgateway.yaml"
+
+    yq eval '
+      del(.spec.template.metadata.annotations["sidecar.istio.io/inject"]) |
+      del(.spec.template.metadata.labels["sidecar.istio.io/inject"]) |
+      .spec.template.metadata.annotations["istio.io/rev"] = "mesh" |
+      .spec.template.metadata.labels["istio.io/rev"] = "mesh"
+    ' -i "${WORKDIR}/istio-ingressgateway.yaml"
+  fi
+
   # Adds gateway-specific configurations based on test requirements
   if [[ "$WORKDIR" == *"filebased-tls-origination"* ]]; then
     # Add volume and volumeMount for egress gateway TLS origination tests
@@ -255,7 +298,9 @@ if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
   install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
   install_istio || { echo "Failed to install Istio"; exit 1; }
-  install_gateways || { echo "Failed to install gateways"; exit 1; }
+  if [ "$INSTALL_GATEWAYS" == "true" ]; then
+    install_gateways || { echo "Failed to install gateways"; exit 1; }
+  fi
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
     echo "Skipping cleanup because SKIP_CLEANUP is set to true."
