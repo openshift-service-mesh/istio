@@ -431,9 +431,7 @@ func (a Builder) serviceServiceBuilder(
 		a.DomainSuffix,
 		true,
 		features.EnableAmbientMultiNetwork,
-		func(ctx krt.HandlerContext) network.ID {
-			return a.Network(ctx)
-		},
+		a.Networks.FetchLocalNetworkID,
 		precompute,
 	)
 }
@@ -474,9 +472,7 @@ func (a Builder) serviceEntryServiceBuilder(
 			nsLabels = (*ns).Labels
 		}
 
-		serviceInfos := serviceEntriesInfo(ctx, s, waypoint, waypointError, nsAnnotations, nsLabels, func(ctx krt.HandlerContext) network.ID {
-			return a.Network(ctx)
-		})
+		serviceInfos := serviceEntriesInfo(ctx, s, waypoint, waypointError, nsAnnotations, nsLabels, a.Networks.FetchLocalNetworkID)
 		return slices.Map(serviceInfos, func(si model.ServiceInfo) TypedServiceInfo {
 			return TypedServiceInfo{ServiceInfo: si}
 		})

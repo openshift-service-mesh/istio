@@ -162,9 +162,15 @@ func (a *index) buildGlobalCollections(
 		opts,
 	)
 	a.networks = GlobalNetworks
+	builder := Builder{
+		DomainSuffix: a.DomainSuffix,
+		ClusterID:    a.ClusterID,
+		Flags:        a.Flags,
+		Networks:     GlobalNetworks,
+	}
 
 	// we need networks to be initialized before we can build waypoints
-	LocalWaypoints := a.builder.WaypointsCollection(options.ClusterID, LocalGateways, localGatewayClasses, LocalPods, opts)
+	LocalWaypoints := builder.WaypointsCollection(options.ClusterID, LocalGateways, localGatewayClasses, LocalPods, opts)
 
 	// We need this because there may be services and waypoints on remote clusters that aren't represented
 	// in our local config cluster
@@ -186,7 +192,7 @@ func (a *index) buildGlobalCollections(
 		opts,
 	)
 
-	LocalWorkloadServices := a.builder.ServicesCollection(
+	LocalWorkloadServices := builder.ServicesCollection(
 		localCluster.ID,
 		localCluster.Services(),
 		localServiceEntries,
@@ -328,7 +334,7 @@ func (a *index) buildGlobalCollections(
 				return nil
 			}
 			networkID := network.ID(parts[0])
-			localNetwork := a.Network(ctx).String()
+			localNetwork := GlobalNetworks.FetchLocalNetworkID(ctx).String()
 			if networkID.String() == localNetwork {
 				// We don't coalesce workloads for the local network
 				return nil
@@ -353,7 +359,7 @@ func (a *index) buildGlobalCollections(
 					capacity += wl.Workload.Capacity.GetValue()
 				}
 			}
-			gws := LookupNetworkGateway(ctx, networkID, a.networks.GatewaysByNetwork)
+			gws := LookupNetworkGateway(ctx, networkID, GlobalNetworks.GatewaysByNetwork)
 			meshCfg := krt.FetchOne(ctx, a.meshConfig.AsCollection())
 			if meshCfg == nil {
 				log.Errorf("Failed to find mesh config for network %s", networkID)
@@ -376,7 +382,7 @@ func (a *index) buildGlobalCollections(
 		if strings.HasPrefix(wi.Workload.Uid, "NetworkGateway/") {
 			return &wi
 		}
-		if wi.Workload.Network != a.Network(ctx).String() {
+		if wi.Workload.Network != GlobalNetworks.FetchLocalNetworkID(ctx).String() {
 			return nil
 		}
 		return &wi
@@ -462,7 +468,7 @@ func (a *index) buildGlobalCollections(
 				log.Errorf("Failed to find mesh config")
 				return nil
 			}
-			localNetwork := a.Network(ctx).String()
+			localNetwork := GlobalNetworks.FetchLocalNetworkID(ctx).String()
 			sans := sets.String{}
 
 			for _, wl := range wls {
