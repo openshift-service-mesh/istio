@@ -190,7 +190,7 @@ func init() {
 		"Indicate the use of ambient mesh.")
 
 	flag.BoolVar(&settingsFromCommandLine.Fips, "istio.test.fips", settingsFromCommandLine.Fips,
-		"Indicate the use of fips compient cluster.")
+		"Indicate the use of fips compliant cluster.")
 
 	flag.BoolVar(&settingsFromCommandLine.PeerMetadataDiscovery, "istio.test.peer_metadata_discovery", settingsFromCommandLine.PeerMetadataDiscovery,
 		"Force the use of peer metadata discovery fallback for metadata exchange")
