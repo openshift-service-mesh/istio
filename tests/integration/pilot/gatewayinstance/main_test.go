@@ -99,12 +99,13 @@ values:
 			cfg.Values["global.istioNamespace"] = meshInstanceNS.Name()
 			cfg.SystemNamespace = meshInstanceNS.Name()
 			cfg.ControlPlaneValues = fmt.Sprintf(`
-namespace: %s`, meshInstanceNS.Name())
+namespace: %s
+revision: mesh`, meshInstanceNS.Name())
 		})).
 		SetupParallel(
 			// application namespaces are labeled according to the required control plane ownership.
-			namespace.Setup(&echoNS, namespace.Config{Prefix: "echo1", Inject: true, Revision: "", Labels: nil}),
-			namespace.Setup(&externalNS, namespace.Config{Prefix: "external", Inject: false})).
+			namespace.Setup(&echoNS, namespace.Config{Prefix: "echo1", Inject: true, Revision: "mesh", Labels: map[string]string{"istio-instance": "mesh"}}),
+			namespace.Setup(&externalNS, namespace.Config{Prefix: "external", Inject: false, Labels: map[string]string{"istio-instance": "gateway"}})).
 		SetupParallel(
 			deployment.SetupSingleNamespace(&apps, deployment.Config{
 				Namespaces: []namespace.Getter{
