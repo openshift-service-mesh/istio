@@ -142,6 +142,9 @@ type Settings struct {
 	// Ambient mesh is being used
 	Ambient bool
 
+	// Cluster is fips complient
+	Fips bool
+
 	// Use ambient instead of sidecars
 	AmbientEverywhere bool
 

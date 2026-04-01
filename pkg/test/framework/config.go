@@ -17,10 +17,13 @@ package framework
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"istio.io/istio/pkg/test"
 	"istio.io/istio/pkg/test/framework/components/cluster"
@@ -55,6 +58,62 @@ func newConfigFactory(ctx resource.Context, clusters cluster.Clusters) config.Fa
 // GlobalYAMLWrites records how many YAMLs we have applied from all sources.
 // Note: go tests are distinct binaries per test suite, so this is the suite level number of calls
 var GlobalYAMLWrites = atomic.NewUint64(0)
+
+// For OSSM3.3+ on FIPS, Proxy is validating all keys before applying the new TLS context to the config. It can take longer for certain situations, e.g.:
+// When DestinationRule for the whole mesh is applied, the proxy can validate 400+ keys, which can take ~1-2minutes.
+// Tests need to wait until the proxy is ready again.
+// After each creation/deletion of DestinationRule, we need to wait till proxy is updated.
+// istio-ingress proxy and sidecar demo app take the longest according to observation, so only those pods are checked.
+func sleepIfDestinationRuleOnFips(ctx resource.Context, yamlFiles []string, operation string) {
+	for _, yamlFile := range yamlFiles {
+		content, err := os.ReadFile(yamlFile)
+		if err == nil && ctx.Settings().Fips && strings.Contains(string(content), "kind: DestinationRule") {
+			scopes.Framework.Infof("DestinationRule %s was %s, checking if istio-ingress proxy is ready", yamlFile, operation)
+			checkIngressProxyReady(ctx, "istio=ingressgateway")
+			checkIngressProxyReady(ctx, "app=sidecar")
+			return
+		}
+	}
+}
+
+// The function gets pods according to label selector from the clusters and checks if the proxies return configuration via pod exec
+// if yes, the proxy is considered as ready
+// if not (timeouted after 1 minute), the proxy is considered as notReady/updating proxy config.
+// It tries 4 times (4 minutes max)
+func checkIngressProxyReady(ctx resource.Context, labelselecter string) {
+	scopes.Framework.Infof("Checking ingress gateway proxies are ready")
+	time.Sleep(10 * time.Second)
+	for _, cl := range ctx.Clusters() {
+		pods, err := cl.Kube().CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labelselecter,
+		})
+		if err != nil {
+			scopes.Framework.Warnf("failed getting ingress gateway pods for cluster %s: %v", cl.Name(), err)
+			continue
+		}
+		if len(pods.Items) == 0 {
+			scopes.Framework.Infof("no ingress gateway pods found for cluster %s", cl.Name())
+			continue
+		}
+		for _, pod := range pods.Items {
+			scopes.Framework.Infof("checking proxy status for pod %s/%s", pod.Namespace, pod.Name)
+			maxRetries := 4
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+				_, _, err = cl.PodExec(pod.Name, pod.Namespace, "istio-proxy", "pilot-agent request GET config_dump")
+				if err == nil {
+					break
+				}
+				if attempt == maxRetries {
+					scopes.Framework.Errorf(
+						"failed getting proxy config for pod %s/%s after %d attempts: %v. The proxy is considered as not ready.",
+						pod.Namespace, pod.Name, maxRetries, err)
+				} else {
+					scopes.Framework.Infof("ingress gateway proxy is not ready, trying again... (attempt %d/%d)", attempt, maxRetries)
+				}
+			}
+		}
+	}
+}
 
 func (c *configFactory) New() config.Plan {
 	return &configPlan{
@@ -98,11 +157,13 @@ func (c *configFactory) applyYAML(cleanupStrategy cleanup.Strategy, ns string, y
 			if err := cl.ApplyYAMLFiles(ns, yamlFiles...); err != nil {
 				return fmt.Errorf("failed applying YAML files %v to ns %s in cluster %s: %v", yamlFiles, ns, cl.Name(), err)
 			}
+			sleepIfDestinationRuleOnFips(c.ctx, yamlFiles, "applied")
 			c.ctx.CleanupStrategy(cleanupStrategy, func() {
 				scopes.Framework.Debugf("Deleting from %s: %s", cl.StableName(), strings.Join(yamlFiles, ", "))
 				if err := cl.DeleteYAMLFiles(ns, yamlFiles...); err != nil {
 					scopes.Framework.Errorf("failed deleting YAML files %v from ns %s in cluster %s: %v", yamlFiles, ns, cl.Name(), err)
 				}
+				sleepIfDestinationRuleOnFips(c.ctx, yamlFiles, "deleted")
 			})
 			return nil
 		})
