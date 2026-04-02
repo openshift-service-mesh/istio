@@ -61,13 +61,9 @@ func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
 		Label(testlabel.CustomSetup).
-<<<<<<< HEAD
-		Label(testlabel.PQC).
-=======
 		SkipIf("PQC is not working on FIPS cluster due to X25519MLKEM", func(t resource.Context) bool {
 			return t.Settings().Fips
 		}).
->>>>>>> 7a510288a4 (Cherry-pick downstream changes to release-1.30 (#761))
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
 			ctx.Settings().Ambient = true
 			ctx.Settings().SkipVMs()
