@@ -50,6 +50,7 @@ CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
+FIPS="${FIPS:="false"}"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
 DEPLOY_GATEWAY_API="false"
 IBM="${IBM:-"false"}"
@@ -275,8 +276,12 @@ if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
             unset 'base_cmd[i]'
         fi
     done
-
-    base_cmd+=("-timeout=120m")
+    if [ "${FIPS}" == "true" ]; then
+        base_cmd+=("-timeout=240m")
+        base_cmd+=("--istio.test.fips")
+    else
+        base_cmd+=("-timeout=120m")
+    fi
 
     # Add sail operator setup script
     SAIL_SETUP_SCRIPT="${WD}/setup/sail-operator-setup.sh"

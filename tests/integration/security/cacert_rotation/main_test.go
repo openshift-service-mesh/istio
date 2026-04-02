@@ -236,7 +236,17 @@ func getWorkloadCertLastUpdateTime(t framework.TestContext, i echo.Instance, ctl
 	podName := fmt.Sprintf("%s.%s", podID, i.NamespaceName())
 	out, errOut, err := ctl.Invoke([]string{"pc", "s", podName, "-o", "json"})
 	if err != nil || errOut != "" {
-		t.Errorf("failed to retrieve pod secret from %s, err: %v errOut: %s", podName, err, errOut)
+		// if FIPS, try again, since the proxy can be in the middle of updating config,
+		// and in that period, the proxy doesn't respond, and `istioctl pc` is timed out after 1 minute
+		if !t.Settings().Fips {
+			t.Errorf("failed to retrieve pod secret from %s, err: %v errOut: %s", podName, err, errOut)
+		}
+		t.Logf("failed to retrieve pod secret. Port-forward can timeouted when proxy updating its config. Try again after 30 seconds")
+		time.Sleep(30 * time.Second)
+		out, errOut, err = ctl.Invoke([]string{"pc", "s", podName, "-o", "json"})
+		if err != nil || errOut != "" {
+			t.Errorf("failed to retrieve pod secret from %s, err: %v errOut: %s", podName, err, errOut)
+		}
 	}
 
 	dump := &admin.SecretsConfigDump{}
