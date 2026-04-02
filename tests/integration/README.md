@@ -582,6 +582,7 @@ The test framework supports the following command-line flags:
 | --istio.test.skipVM                | bool | Skip all the VM related parts in all the tests. (default is "false").                                                                                         |
 | --istio.test.helmRepo              | string | Overwrite the default helm Repo used for the tests.                                                                                                           |
 | --istio.test.ambient               | bool | Indicate the use of ambient mesh.                                                                                                                             |
+| --istio.test.fips                  | bool | Indicate the cluster is fips compliant                                                                                                                        |
 | --istio.test.openshift             | bool | Set to `true` when running the tests in an OpenShift cluster, rather than in KinD.                                                                            |
 | --istio.test.stableNamespaces      | bool | Set to `true` to use stable namespaces for the test. Useful with nocleanup to develop tests                                                                   |
 | --istio.test.nativeNftables        | bool | Set to `true` to use native nftable rules instead of iptable rules                      |
