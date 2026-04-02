@@ -66,6 +66,9 @@ WORKDIR="$2"
 IOP_FILE="$2"/iop.yaml
 SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
 
+# Control Istio Ambient mode deploy
+AMBIENT="${AMBIENT:="false"}"
+
 CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
 
 # get istio version from versions.yaml
@@ -79,8 +82,10 @@ fi
   
 NAMESPACE="${NAMESPACE:-istio-system}"
 ISTIOCNI_NAMESPACE="${ISTIOCNI_NAMESPACE:-istio-cni}"
+ZTUNNEL_NAMESPACE="${ZTUNNEL_NAMESPACE:-ztunnel}"
 
 ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
+ZTUNNEL="${PROW}/config/sail-operator/ztunnel.yaml"
 INGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/ingress-gateway-values.yaml"
 EGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/egress-gateway-values.yaml"
 
@@ -104,8 +109,22 @@ function install_istio_cni(){
   cp "$ISTIOCNI" "$TMP_ISTIOCNI"
   yq -i ".spec.namespace=\"$ISTIOCNI_NAMESPACE\"" "$TMP_ISTIOCNI"
   yq -i ".spec.version=\"$ISTIO_VERSION\"" "$TMP_ISTIOCNI"
+  if [ "$AMBIENT" == "true" ]; then
+    yq -i '.spec.profile="ambient"' "$TMP_ISTIOCNI"
+  fi
   oc apply -f "$TMP_ISTIOCNI"
   echo "istioCNI created."
+}
+
+function install_ztunnel() {
+  oc create namespace "${ZTUNNEL_NAMESPACE}" || true
+  TMP_ZTUNNEL=$WORKDIR/ztunnel.yaml
+  cp "$ZTUNNEL" "$TMP_ZTUNNEL"
+  yq -i ".spec.namespace=\"$ZTUNNEL_NAMESPACE\"" "$TMP_ZTUNNEL"
+  yq -i ".spec.version=\"$ISTIO_VERSION\"" "$TMP_ZTUNNEL"
+  patch_ztunnel_config
+  oc apply -f "$TMP_ZTUNNEL"
+  echo "ZTunnel created."
 }
 
 function install_istio(){
@@ -146,6 +165,20 @@ function patch_config() {
       .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Enabled DNS capture for Istio proxy."
+  fi
+
+  # Set Ambient config if set
+  if [[ "$AMBIENT" == "true" ]]; then
+    yq eval '.spec.profile = "ambient"' -i "$WORKDIR/$SAIL_IOP_FILE"
+    yq eval ".spec.values.pilot.trustedZtunnelNamespace = \"$ZTUNNEL_NAMESPACE\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+
+    # Add discoverySelectors to match Helm behavior
+    yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchExpressions": [{"key": "istio.io/test-exclude-namespace", "operator": "DoesNotExist"}]}]' -i "$WORKDIR/$SAIL_IOP_FILE"
+
+    # Add configurations for ServiceEntry/DNS resolution
+    yq eval '.spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"' -i "$WORKDIR/$SAIL_IOP_FILE"
+
+    echo "Configured Ambient mode for Istio."
   fi
 
   # Enable JWT and multiroot mesh for security-ca-custom profiles
@@ -255,8 +288,14 @@ function patch_gateway_config() {
   fi
 }
 
+function patch_ztunnel_config() {
+  if [[ "$WORKDIR" == *"ambient-pqc"* ]]; then
+      yq -i '.spec.values.ztunnel.env.COMPLIANCE_POLICY="pqc"' "$TMP_ZTUNNEL"
+  fi
+}
+
 # Install ingress and egress gateways
-function install_gateways(){
+function install_gateways() {
   helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
   helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
 
@@ -268,8 +307,8 @@ function install_gateways(){
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo 'Failed to start istio-ingressgateway'; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3==\"ErrImagePull\" {print $1}' | head -n 1)" -n istio-system; exit 1;}
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo 'Failed to start istio-egressgateway';  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1)" -n istio-system; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
 }
 
@@ -279,17 +318,28 @@ function cleanup_istio() {
   echo "Starting Istio cleanup..."
   TIMEOUT_DURATION="120s"
   
-  echo "Deleting Istio resources from namespace $ISTIOCNI_NAMESPACE..."
-  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  echo "Deleting IstioCNI resources from namespace $ISTIOCNI_NAMESPACE..."
+  kubectl delete istiocni --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $ISTIOCNI_NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --force --grace-period=0 --wait=true
   }
 
+  echo "Deleting ZTunnel resources from namespace $ZTUNNEL_NAMESPACE..."
+  kubectl delete ztunnel --all -n "$ZTUNNEL_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+    echo "Normal delete failed for $ZTUNNEL_NAMESPACE or timed out, applying force delete..."
+    kubectl delete all --all -n "$ZTUNNEL_NAMESPACE" --force --grace-period=0 --wait=true
+  }
+
   echo "Deleting Istio resources from namespace $NAMESPACE..."
-  kubectl delete all --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  kubectl delete istio --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$NAMESPACE" --force --grace-period=0 --wait=true
   }
+
+  echo "Delete Istio, IstioCNI and Ztunnel namespaces"
+  kubectl delete namespace "$ISTIOCNI_NAMESPACE" || true
+  kubectl delete namespace "$ZTUNNEL_NAMESPACE" || true
+  kubectl delete namespace "$NAMESPACE" || true
 
   echo "Cleanup completed successfully."
 }
@@ -297,6 +347,9 @@ function cleanup_istio() {
 if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
   install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
+  if [ "$AMBIENT" == "true" ]; then
+    install_ztunnel || { echo "Failed to install ZTunnel"; exit 1; }
+  fi
   install_istio || { echo "Failed to install Istio"; exit 1; }
   if [ "$INSTALL_GATEWAYS" == "true" ]; then
     install_gateways || { echo "Failed to install gateways"; exit 1; }
@@ -308,4 +361,3 @@ elif [ "$1" = "cleanup" ]; then
     cleanup_istio || { echo "Failed to cleanup cluster"; exit 1; }
   fi
 fi
-
