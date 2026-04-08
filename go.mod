@@ -15,7 +15,7 @@ require (
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443
 	github.com/containernetworking/cni v1.3.0
 	github.com/containernetworking/plugins v1.7.1
-	github.com/coreos/go-oidc/v3 v3.14.1
+	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/cli v28.1.1+incompatible
 	github.com/envoyproxy/go-control-plane/contrib v1.32.5-0.20250627145903-197b96a9c7f8
@@ -24,7 +24,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/felixge/fgprof v0.9.5
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-jose/go-jose/v4 v4.1.0
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-logr/logr v1.4.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.4
