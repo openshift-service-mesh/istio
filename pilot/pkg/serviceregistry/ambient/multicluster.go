@@ -483,9 +483,10 @@ func (a *index) buildGlobalCollections(
 			sans = sans.Union(sets.New(svc.Service.SubjectAltNames...))
 
 			newSvcInfo := &model.ServiceInfo{
-				Service:      protomarshal.Clone(svc.Service),
-				Scope:        svc.Scope,
-				CreationTime: svc.CreationTime,
+				Service:            protomarshal.Clone(svc.Service),
+				Scope:              svc.Scope,
+				CreationTime:       svc.CreationTime,
+				DNSConnectStrategy: svc.DNSConnectStrategy,
 			}
 			newSvcInfo.Service.SubjectAltNames = sans.UnsortedList()
 			return precomputeServicePtr(newSvcInfo)
@@ -493,9 +494,12 @@ func (a *index) buildGlobalCollections(
 		opts.WithName("SplitHorizonServices")...)
 
 	SplitHorizonServices.RegisterBatch(krt.BatchedEventFilter(
-		func(a model.ServiceInfo) *workloadapi.Service {
+		func(a model.ServiceInfo) *model.XDSServiceInfo {
 			// Only trigger push if the XDS object changed; the rest is just for computation of others
-			return a.Service
+			return &model.XDSServiceInfo{
+				Service:            a.Service,
+				DNSConnectStrategy: a.DNSConnectStrategy,
+			}
 		},
 		PushXdsAddress(a.XDSUpdater, model.ServiceInfo.ResourceName),
 	), false)
