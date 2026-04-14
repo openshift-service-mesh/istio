@@ -47,6 +47,14 @@ func index(ciphers []string) map[string]struct{} {
 
 var fipsCipherIndex = index(fipsCiphers)
 
+var fips3Curves = []string{
+	"P-256",
+	"P-384",
+	"P-521",
+}
+
+var fips3CurveIndex = index(fips3Curves)
+
 // EnforceGoCompliance limits the TLS settings to the compliant values.
 // This should be called as the last policy.
 func EnforceGoCompliance(ctx *gotls.Config) {
@@ -58,6 +66,12 @@ func EnforceGoCompliance(ctx *gotls.Config) {
 		ctx.MaxVersion = gotls.VersionTLS12
 		ctx.CipherSuites = fipsGoCiphers
 		ctx.CurvePreferences = []gotls.CurveID{gotls.CurveP256}
+		return
+	case common_features.FIPS_140_3_REDHAT:
+		// Red Hat's OpenSSL-based Go runtime uses its own FIPS module for cipher selection.
+		// We only enforce TLS version bounds; cipher suites and curves are left to the FIPS module.
+		ctx.MinVersion = gotls.VersionTLS12
+		ctx.MaxVersion = gotls.VersionTLS13
 		return
 	case common_features.PQC:
 		ctx.MinVersion = gotls.VersionTLS13
@@ -94,6 +108,33 @@ func EnforceCompliance(ctx *tls.CommonTlsContext) {
 		}
 		// Default (unset) is P-256
 		ctx.TlsParams.EcdhCurves = nil
+		return
+	case common_features.FIPS_140_3_REDHAT:
+		if ctx.TlsParams == nil {
+			ctx.TlsParams = &tls.TlsParameters{}
+		}
+		ctx.TlsParams.TlsMinimumProtocolVersion = tls.TlsParameters_TLSv1_2
+		ctx.TlsParams.TlsMaximumProtocolVersion = tls.TlsParameters_TLSv1_3
+		// Filter cipher suites to only FIPS-approved ciphers.
+		if len(ctx.TlsParams.CipherSuites) > 0 {
+			ciphers := []string{}
+			for _, cipher := range ctx.TlsParams.CipherSuites {
+				if _, ok := fipsCipherIndex[cipher]; ok {
+					ciphers = append(ciphers, cipher)
+				}
+			}
+			ctx.TlsParams.CipherSuites = ciphers
+		}
+		// Filter ECDH curves to only FIPS 140-3 approved curves (P-256, P-384, P-521).
+		if len(ctx.TlsParams.EcdhCurves) > 0 {
+			curves := []string{}
+			for _, curve := range ctx.TlsParams.EcdhCurves {
+				if _, ok := fips3CurveIndex[curve]; ok {
+					curves = append(curves, curve)
+				}
+			}
+			ctx.TlsParams.EcdhCurves = curves
+		}
 		return
 	case common_features.PQC:
 		if ctx.TlsParams == nil {
