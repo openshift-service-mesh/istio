@@ -1,0 +1,134 @@
+# Test Configuration - Full Test Suite (release-1.24)
+# This file centralizes test run configuration for all runners (downstream, jenkins, etc.)
+# The data are used to run Istio Integration tests, to fill the command:
+# integ-suite-ocp.sh ${test_suite} ${skip_tests} ${skip_subsuites} ${run_tests_only}
+#
+
+test_suites:
+  pilot:
+    skip_tests:
+      - name: "TestGatewayConformance"
+        reason: ""
+        skip_in: ['midstream_sail','midstream_helm']
+      - name: "TestGateway/managed-owner"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestCNIVersionSkew"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway"
+        reason: ""
+        skip_in: ['midstream_sail','midstream_helm']
+      - name: "TestAuthZCheck"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestKubeInject"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestRevisionTags"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallByRevision"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallWithSetFlag"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallCustomFile"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallPurge"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestCNIRaceRepair"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestValidation"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestWebhook"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestMultiRevision"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestAnalysisWritesStatus"
+        reason: ""
+        skip_in: ['midstream_sail']
+      - name: "TestLocality"
+        reason: ""
+        skip_in: ['midstream_sail']
+    skip_subsuites: []
+    run_tests_only: []
+  security:
+    skip_tests:
+      - name: "TestAuthz_CustomServer"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestGatewayAPIRequestAuthentication"
+        reason: ""
+        skip_in: ['midstream_sail']
+      - name: "TestNormalization"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestTlsGatewaysWithQUIC"
+        reason: "QUIC protocol is not supported by OSSM yet. In midstream, AWS platform does not support QUIC, so the test skipped."
+        skip_in: ['downstream']
+      - name: "TestMtlsGatewaysWithQUIC"
+        reason: "QUIC protocol is not supported by OSSM yet. In midstream, AWS platform does not support QUIC, so the test skipped."
+        skip_in: ['downstream']
+      - name: "TestMultiTlsGateway_InvalidSecret"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestMultiMtlsGateway_InvalidSecret"
+        reason: ""
+        skip_in: ['midstream_helm']
+    skip_subsuites:
+      - name: "external_ca"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "file_mounted_certs"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "policy_attachment_only"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+    run_tests_only: []
+  telemetry:
+    skip_tests:
+      - name: "TestDashboard/pilot-dashboard.json"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+    skip_subsuites: []
+    run_tests_only: []
+  helm:
+    skip_tests:
+      - name: "TestAmbientInstall"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestAmbientInstallMultiNamespace"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestCanaryUpgradeFromTwoMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestStableRevisionLabelsUpgradeFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestStableRevisionLabelsUpgradeFromTwoMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestAmbientInPlaceUpgradeFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestZtunnelFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestDefaultInPlaceUpgradeFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestCanaryUpgradeFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+    skip_subsuites: []
+    run_tests_only: []
