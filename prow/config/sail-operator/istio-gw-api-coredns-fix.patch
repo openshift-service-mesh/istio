@@ -17,7 +17,7 @@ index 8bcade301e..4a70d7fc23 100644
  				Clientset:                gatewayConformanceInputs.Client.Kube(),
  				ClientOptions:            clientOptions,
 @@ -111,6 +113,6 @@ func TestGatewayConformance(t *testing.T) {
- 				GatewayClassName:         "istio",
+ 				GatewayClassName:         i.Settings().GatewayClassName,
  				Debug:                    scopes.Framework.DebugEnabled(),
  				CleanupBaseResources:     gatewayConformanceInputs.Cleanup,
 -				ManifestFS:               []fs.FS{&conformance.Manifests},
