@@ -130,6 +130,7 @@ function install_istio_cni(){
   if [ "$AMBIENT" == "true" ]; then
     yq -i '.spec.profile="ambient"' "$TMP_ISTIOCNI"
   fi
+  patch_istiocni_config
   oc apply -f "$TMP_ISTIOCNI"
   echo "istioCNI created."
 }
@@ -273,6 +274,16 @@ function patch_gateway_config() {
     ' -i "${WORKDIR}/istio-ingressgateway.yaml"
 
     echo "Added HTTP3/QUIC port configuration to ingress gateway."
+  fi
+}
+
+function patch_istiocni_config() {
+  # Config set for "TestCNINeverEnrollsPodsInExcludedNamespaces" ambient cni test.
+  # The "cni-excluded-ns" NS name hardcoded here, since it's being created after Istio
+  # deployment by Sail and as a result could not be fetched dynamically.
+  if [[ "$WORKDIR" == *"ambient-cni-"* ]]; then
+      yq -i '.spec.values.cni.excludeNamespaces = ["istio-system", "cni-excluded-ns"]' "$TMP_ISTIOCNI"
+      echo "Ambient CNI config applied"
   fi
 }
 
