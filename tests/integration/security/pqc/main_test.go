@@ -56,7 +56,11 @@ func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
 		Label(label.CustomSetup).
+		SkipIf("PQC is not working on FIPS cluster due to X25519MLKEM", func(t resource.Context) bool {
+			return t.Settings().Fips
+		}).
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
+			ctx.Settings().EchoImage = "quay.io/sail-dev/app:release-1.28"
 			cfg.ControlPlaneValues = `
 values:
   pilot:

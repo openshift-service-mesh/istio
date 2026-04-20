@@ -142,10 +142,8 @@ type Settings struct {
 	// Ambient mesh is being used
 	Ambient bool
 
-	// Meshless indicates tests are running against a cluster without Istio mesh capabilities.
-	// When true, echo apps will be deployed without the istio-proxy sidecar container overlay,
-	// as there is no injection webhook to transform the "image: auto" placeholder.
-	Meshless bool
+	// Cluster is fips complient
+	Fips bool
 
 	// Use ambient instead of sidecars
 	AmbientEverywhere bool
