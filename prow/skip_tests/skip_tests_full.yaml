@@ -7,9 +7,6 @@
 test_suites:
   pilot:
     skip_tests:
-      - name: "TestGatewayConformance"
-        reason: ""
-        skip_in: ['midstream_sail','midstream_helm']
       - name: "TestGateway/managed-owner"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
@@ -123,7 +120,10 @@ test_suites:
       - name: "TestCNIMisconfigHealsOnRestart"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance"
+      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestAPIServer"
