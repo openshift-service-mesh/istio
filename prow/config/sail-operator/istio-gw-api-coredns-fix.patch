@@ -23,7 +23,7 @@ index 8bcade301e..4a70d7fc23 100644
 -				ManifestFS:               []fs.FS{&conformance.Manifests},
 +				ManifestFS:               []fs.FS{os.DirFS("testdata"), &conformance.Manifests},
  				SupportedFeatures:        features.SetsToNamesSet(supportedFeatures),
- 				SkipTests:                maps.Keys(skippedTests),
+ 				SkipTests:                skippedTestKeys,
 diff --git a/tests/integration/pilot/testdata/gateway-conformance-manifests.yaml b/tests/integration/pilot/testdata/gateway-conformance-manifests.yaml
 new file mode 100644
 index 0000000000..d78c853007
