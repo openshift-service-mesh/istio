@@ -156,6 +156,12 @@ test_suites:
       - name: "TestWaypointAsEgressGateway/http_origination_route_with_BackendTLSPolicy"
         reason: "Disabling because it requires experimental CRDs(#72020)"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWaypoint/TLS_connection_with_PQC-compliant_settings_should_succeed"
+        reason: "Disabling because it required experimental CRDs"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWaypoint/TLS_connection_originated_by_the_waypoint_should_succeed"
+        reason: "Disabling because it required experimental CRDs"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestZtunnelCRL"
         reason: "The new TestZtunnelCRL test still does not have supported values within Sail Operator for the test. Would be enabled, once fixed.(#74391)"
         skip_in: ['downstream','midstream_sail']
