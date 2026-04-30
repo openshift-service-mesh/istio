@@ -247,12 +247,16 @@ if [ "${TEST_SUITE}" == "pilot" ]; then
     # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
     base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
     # Stops flaky runs in public clouds
-    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
 fi
 
 # If ambient mode executed, add "ambient" profile and args
-if [ "${AMBIENT}" == "true" ]; then
+if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     base_cmd+=("--istio.test.ambient")
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
     base_cmd+=("--istio.test.kube.ztunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}")
 

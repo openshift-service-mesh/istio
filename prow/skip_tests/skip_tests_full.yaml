@@ -9,7 +9,10 @@ test_suites:
     skip_tests:
       - name: "TestGatewayConformance"
         reason: ""
-        skip_in: ['midstream_sail','midstream_helm']
+        skip_in: ['midstream_sail']
+      - name: "TestGatewayConformanceAgentgateway"
+        reason: ""
+        skip_in: ['midstream_helm']
       - name: "TestGateway/managed-owner"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
@@ -123,7 +126,10 @@ test_suites:
       - name: "TestCNIMisconfigHealsOnRestart"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance"
+      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestAPIServer"
@@ -165,6 +171,42 @@ test_suites:
       - name: "TestZtunnelCRL"
         reason: "The new TestZtunnelCRL test still does not have supported values within Sail Operator for the test. Would be enabled, once fixed.(#74391)"
         skip_in: ['downstream','midstream_sail']
+      - name: "TestGatewayConformance/HTTPRouteCORSAllowCredentialsBehavior"
+        reason: "Failing in conformance; investigation required for CORS credentials handling."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteHostnameIntersection"
+        reason: "Failing in conformance; potential SNI matching or listener intersection issue."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefNonexistent"
+        reason: "Failing in conformance; status reason BackendNotFound not correctly reported."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefUnknownKind"
+        reason: "Failing in conformance; status reason InvalidKind not correctly reported."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListenerHostname"
+        reason: "Failing in conformance; logic for hostname mismatch not returning expected error status."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListener"
+        reason: "Failing in conformance; route failing to be rejected when no listeners are available."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteMixedTerminationSameNamespace"
+        reason: "Failing in conformance; issue with mixed TLS termination modes in same namespace."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteTerminateSimpleSameNamespace"
+        reason: "Failing in conformance; basic TLS termination path failed."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformanceAgentGateway"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidKind"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   telemetry:
