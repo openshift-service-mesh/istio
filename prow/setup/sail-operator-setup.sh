@@ -166,11 +166,9 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Enabled DNS capture for Istio proxy."
   fi
-}
 
-SECRET_NAME="istio-ca-secret"
-WEBHOOK_FILE="$PROW/config/sail-operator/validatingwebhook.yaml"
-
+  # Set Ambient config if set
+  if [[ "$AMBIENT" == "true" ]]; then
     # Add discoverySelectors to match Helm behavior
     yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchExpressions": [{"key": "istio.io/test-exclude-namespace", "operator": "DoesNotExist"}]}]' -i "$WORKDIR/$SAIL_IOP_FILE"
 

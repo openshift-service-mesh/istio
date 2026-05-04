@@ -286,7 +286,7 @@ func TestConfigureIstioGateway(t *testing.T) {
 		},
 		{
 			name: "waypoint-resources-null",
-			gw: k8sbeta.Gateway{
+			gw: k8s.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "namespace",
 					Namespace: "default",
@@ -313,7 +313,7 @@ func TestConfigureIstioGateway(t *testing.T) {
 		},
 		{
 			name: "kube-gateway-resources-null",
-			gw: k8sbeta.Gateway{
+			gw: k8s.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "default",
 					Namespace: "default",
