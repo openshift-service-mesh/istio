@@ -207,7 +207,7 @@ spec:
         {{- end }}
         {{- if .Values.global.waypoint.resources }}
         resources:
-        {{- toYaml (omitNil .Values.global.waypoint.resources) | nindent 10 }}
+        {{- toYaml .Values.global.waypoint.resources | nindent 10 }}
         {{- end }}
         startupProbe:
           failureThreshold: 30

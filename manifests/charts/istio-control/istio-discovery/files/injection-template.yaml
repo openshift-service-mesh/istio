@@ -20,7 +20,7 @@
     {{- end }}
   {{- else }}
     {{- if .Values.global.proxy.resources }}
-      {{ toYaml (omitNil .Values.global.proxy.resources) | indent 6 }}
+      {{ toYaml .Values.global.proxy.resources | indent 6 }}
     {{- end }}
   {{- end }}
 {{- end }}
