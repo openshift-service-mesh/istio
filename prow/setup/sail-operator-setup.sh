@@ -386,15 +386,6 @@ function cleanup_istio() {
   echo "Cleanup completed successfully."
 }
 
-MINOR_VERSION=$(echo "$ISTIO_VERSION" | sed 's/-latest//' | awk -F. '
-{
-  gsub(/^v/, "", $1);
-  major = $1;
-  minor = $2;
-  patch = ($3 == "" ? "0" : $3);
-  printf("v%s.%s.%s\n", major, minor, patch);
-}')
-
 if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
   install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
