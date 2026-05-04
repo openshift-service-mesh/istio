@@ -304,7 +304,7 @@ function install_gateways() {
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk "$3==\"ErrImagePull\" {print $1}" | head -n 1) -n istio-system; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1)" -n istio-system; exit 1;}
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
 }
@@ -329,15 +329,6 @@ function cleanup_istio() {
 
   echo "Cleanup completed successfully."
 }
-
-MINOR_VERSION=$(echo "$ISTIO_VERSION" | sed 's/-latest//' | awk -F. '
-{
-  gsub(/^v/, "", $1);
-  major = $1;
-  minor = $2;
-  patch = ($3 == "" ? "0" : $3);
-  printf("v%s.%s.%s\n", major, minor, patch);
-}')
 
 if [ "$1" = "install" ]; then
   download_execute_converter || { echo "Failed to execute converter"; exit 1; }
