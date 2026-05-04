@@ -189,10 +189,7 @@ setup_junit_report() {
 
 # Prepare go list expression for skipping suites
 if [[ -n "$SKIP_SUITE" ]]; then
-  mapfile -t TEST_PATH < <(
-    go list -tags=integ ./tests/integration/${TEST_SUITE}/... |
-    grep -vE "/(${SKIP_SUITE})$"
-  )
+  TEST_PATH=$(go list -tags=integ "./tests/integration/${TEST_SUITE}/..." | grep -vE "/(${SKIP_SUITE})$")
 else
   TEST_PATHS=("./tests/integration/${TEST_SUITE}/...")
 fi
