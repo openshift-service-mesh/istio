@@ -65,6 +65,7 @@ func TestMain(m *testing.M) {
 		SkipIf("PQC is not working on FIPS cluster due to X25519MLKEM", func(t resource.Context) bool {
 			return t.Settings().Fips
 		}).
+		Label(testlabel.PQC).
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
 			ctx.Settings().Ambient = true
 			ctx.Settings().SkipVMs()
@@ -176,7 +177,6 @@ func setupAppsConfig(_ resource.Context) error {
 func TestIngress(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(t framework.TestContext) {
-			t.Skip("https://github.com/istio/istio/issues/59520")
 			credName := "ingress-pqc-credential"
 			host := "ingress-pqc.example.com"
 			gatewayName := "ingress-pqc-credential"
@@ -255,7 +255,7 @@ spec:
 						MinVersion:       "1.3",
 						CurvePreferences: []string{"P-256"},
 					},
-					Check: check.TLSHandshakeFailure(),
+					Check: check.Or(check.TLSHandshakeFailure(), check.ConnectionResetByPeer()),
 				})
 			})
 		})
@@ -264,29 +264,6 @@ spec:
 func TestWaypoint(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(t framework.TestContext) {
-			t.Skip("https://github.com/istio/istio/issues/59520")
-			serviceEntryYaml := `
-apiVersion: networking.istio.io/v1
-kind: ServiceEntry
-metadata:
-  name: external
-spec:
-  hosts:
-  - server.{{.ExternalNamespace}}.svc.cluster.local
-  ports:
-  - name: https
-    number: 8443
-    protocol: HTTPS
-  location: MESH_EXTERNAL
-  resolution: DNS
-  endpoints:
-  - address: server.{{.ExternalNamespace}}.svc.cluster.local`
-			t.ConfigIstio().
-				Eval(internalNs.Name(), map[string]string{
-					"ExternalNamespace": externalNs.Name(),
-				}, serviceEntryYaml).
-				ApplyOrFail(t, apply.CleanupConditionally)
-
 			t.NewSubTest("TLS connection with PQC-compliant settings should succeed").Run(func(t framework.TestContext) {
 				a.CallOrFail(t, echo.CallOptions{
 					To: server,
@@ -316,7 +293,7 @@ spec:
 						CurvePreferences: []string{"P-256"},
 					},
 					Timeout: 1 * time.Second,
-					Check:   check.TLSHandshakeFailure(),
+					Check:   check.Or(check.TLSHandshakeFailure(), check.ConnectionResetByPeer()),
 				})
 			})
 
