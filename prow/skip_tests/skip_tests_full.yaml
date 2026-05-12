@@ -8,11 +8,8 @@ test_suites:
   pilot:
     skip_tests:
       - name: "TestGatewayConformance"
-        reason: "Needs to be patched to be able to execute. Patch is available on downstream."
-        skip_in: ['midstream_sail']
-      - name: "TestGatewayConformanceAgentgateway"
         reason: ""
-        skip_in: ['midstream_helm']
+        skip_in: ['midstream_sail','midstream_helm']
       - name: "TestGateway/managed-owner"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
@@ -126,7 +123,7 @@ test_suites:
       - name: "TestCNIMisconfigHealsOnRestart"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformanceAgentgateway"
+      - name: "TestGatewayConformance"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestAPIServer"
@@ -168,69 +165,6 @@ test_suites:
       - name: "TestZtunnelCRL"
         reason: "The new TestZtunnelCRL test still does not have supported values within Sail Operator for the test. Would be enabled, once fixed.(#74391)"
         skip_in: ['downstream','midstream_sail']
-      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/HTTPRouteCORSAllowCredentialsBehavior"
-        reason: "Not supported on CIO."
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteHostnameIntersection"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefNonexistent"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefUnknownKind"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListenerHostname"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListener"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteMixedTerminationSameNamespace"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteTerminateSimpleSameNamespace"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicyInvalidKind"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
-        reason: "Disabling test which requires experimental CRDs"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceNone"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceSame"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceSelector"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetAllowedRoutesNamespaces"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetAllowedRoutesSupportedKinds"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetDefaultNotAllowed"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetHTTPRouting"
-        reason: "ListenerSet CRDs is not installed by default"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/eNamespaceNone"
-        reason: ""
-        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   telemetry:
