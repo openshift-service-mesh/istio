@@ -43,7 +43,7 @@ components, including Envoy, gRPC Go SDK, and gRPC C++ SDK.
 * 'fips-140-3-redhat' which enforces FIPS 140-3 compliance for Red Hat's
 OpenSSL-based Go runtime. Supports TLS v1.2 and v1.3. Does not configure
 default ciphers in Go (Red Hat's OpenSSL-based Go uses its FIPS module).
-Filters Envoy cipher suites to only FIPS-approved ciphers.
+Leaves Envoy cipher suites and curves at their defaults.
 * 'pqc' which enforces post-quantum-safe key exchange X25519MLKEM768, TLS v1.3
 and cipher suites TLS_AES_128_GCM_SHA256 and TLS_AES_256_GCM_SHA384 overriding
 any user preferences or defaults for all runtime components, including Envoy,

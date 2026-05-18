@@ -47,14 +47,6 @@ func index(ciphers []string) map[string]struct{} {
 
 var fipsCipherIndex = index(fipsCiphers)
 
-var fips3Curves = []string{
-	"P-256",
-	"P-384",
-	"P-521",
-}
-
-var fips3CurveIndex = index(fips3Curves)
-
 // EnforceGoCompliance limits the TLS settings to the compliant values.
 // This should be called as the last policy.
 func EnforceGoCompliance(ctx *gotls.Config) {
@@ -115,26 +107,8 @@ func EnforceCompliance(ctx *tls.CommonTlsContext) {
 		}
 		ctx.TlsParams.TlsMinimumProtocolVersion = tls.TlsParameters_TLSv1_2
 		ctx.TlsParams.TlsMaximumProtocolVersion = tls.TlsParameters_TLSv1_3
-		// Filter cipher suites to only FIPS-approved ciphers.
-		if len(ctx.TlsParams.CipherSuites) > 0 {
-			ciphers := []string{}
-			for _, cipher := range ctx.TlsParams.CipherSuites {
-				if _, ok := fipsCipherIndex[cipher]; ok {
-					ciphers = append(ciphers, cipher)
-				}
-			}
-			ctx.TlsParams.CipherSuites = ciphers
-		}
-		// Filter ECDH curves to only FIPS 140-3 approved curves (P-256, P-384, P-521).
-		if len(ctx.TlsParams.EcdhCurves) > 0 {
-			curves := []string{}
-			for _, curve := range ctx.TlsParams.EcdhCurves {
-				if _, ok := fips3CurveIndex[curve]; ok {
-					curves = append(curves, curve)
-				}
-			}
-			ctx.TlsParams.EcdhCurves = curves
-		}
+		ctx.TlsParams.CipherSuites = nil
+		ctx.TlsParams.EcdhCurves = nil
 		return
 	case common_features.PQC:
 		if ctx.TlsParams == nil {
