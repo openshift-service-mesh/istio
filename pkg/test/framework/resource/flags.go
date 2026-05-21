@@ -194,8 +194,8 @@ func init() {
 	flag.BoolVar(&settingsFromCommandLine.Fips, "istio.test.fips", settingsFromCommandLine.Fips,
 		"Indicate the use of fips compliant cluster.")
 
-	flag.BoolVar(&settingsFromCommandLine.Meshless, "istio.test.meshless", settingsFromCommandLine.Meshless,
-		"Indicate a meshless cluster (no sidecar injection). Echo apps will be deployed without istio-proxy overlay.")
+	flag.BoolVar(&settingsFromCommandLine.GatewayAPIOnly, "istio.test.gatewayAPIOnly", settingsFromCommandLine.GatewayAPIOnly,
+		"Indicate a Gateway API-only cluster (no sidecar injection). Echo apps will be deployed without istio-proxy overlay.")
 
 	flag.BoolVar(&settingsFromCommandLine.PeerMetadataDiscovery, "istio.test.peer_metadata_discovery", settingsFromCommandLine.PeerMetadataDiscovery,
 		"Force the use of peer metadata discovery fallback for metadata exchange")
