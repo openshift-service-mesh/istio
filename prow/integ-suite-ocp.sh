@@ -189,13 +189,13 @@ setup_junit_report() {
 
 # Prepare go list expression for skipping suites
 if [[ -n "$SKIP_SUITE" ]]; then
-  TEST_PATH=$(go list -tags=integ "./tests/integration/${TEST_SUITE}/..." | grep -vE "/(${SKIP_SUITE})$")
+  mapfile -t TEST_PATHS < <(go list -tags=integ "./tests/integration/${TEST_SUITE}/..." | grep -vE "/(${SKIP_SUITE})$")
 else
-  TEST_PATH="./tests/integration/${TEST_SUITE}/..."
+  TEST_PATHS=("./tests/integration/${TEST_SUITE}/...")
 fi
 
 # Build the base command and store it in an array
-base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "${TEST_PATH}"
+base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "${TEST_PATHS[@]}"
           "--istio.test.ci"
           "--istio.test.pullpolicy=IfNotPresent"
           "--istio.test.work_dir=${ARTIFACTS_DIR}"
@@ -304,7 +304,7 @@ elif [ "${TEST_OUTPUT_FORMAT}" == "gotestsum" ]; then
       --junitfile "${JUNIT_REPORT_DIR}/junit.xml" \
       --rerun-fails \
       --rerun-fails-max-failures=3 \
-      --packages "${TEST_PATH[@]}" \
+      --packages "${TEST_PATHS[@]}" \
       --debug \
       -- "${base_cmd[@]:5}"
       
