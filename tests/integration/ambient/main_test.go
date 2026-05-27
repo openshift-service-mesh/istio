@@ -302,8 +302,9 @@ func SetupApps(t resource.Context, i istio.Instance, apps *EchoDeployments) erro
 	if whErr != nil && !kerrors.IsNotFound(whErr) {
 		return whErr
 	}
-	// Only setup sidecar tests if webhook is installed
-	if whErr == nil {
+	// Only setup sidecar tests if webhook is installed and not on OpenShift
+	// On OpenShift, sidecar-injected pods in ambient mode fail to start due to SCC constraints
+	if whErr == nil && !t.Settings().OpenShift {
 		builder = builder.WithConfig(echo.Config{
 			Service:        Sidecar,
 			Namespace:      apps.Namespace,

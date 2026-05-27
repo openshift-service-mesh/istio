@@ -153,8 +153,12 @@ func SetupApps(t resource.Context, i istio.Instance, apps *EchoDeployments) erro
 					Labels:   map[string]string{label.IoIstioDataplaneMode.Name: constants.DataplaneModeNone},
 				},
 			},
-		}).
-		WithConfig(echo.Config{
+		})
+
+	// Skip sidecar deployment on OpenShift — sidecar-injected pods in ambient mode
+	// fail to start due to SCC constraints
+	if !t.Settings().OpenShift {
+		builder = builder.WithConfig(echo.Config{
 			Service:        Sidecar,
 			Namespace:      apps.Namespace,
 			Ports:          ports.All(),
@@ -178,6 +182,7 @@ func SetupApps(t resource.Context, i istio.Instance, apps *EchoDeployments) erro
 				},
 			},
 		})
+	}
 
 	// Build the applications
 	echos, err := builder.Build()
