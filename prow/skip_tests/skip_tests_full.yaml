@@ -107,6 +107,9 @@ test_suites:
       - name: "TestAuthz_MultipleCustomProviders_Overlapping"
         reason: "The tests modify its configuration during the execution, which is not supported right now by Sail Operator install flow. (#74327)"
         skip_in: ['downstream','midstream_sail']
+      - name: "TestSidecarMutualTlsOrigination/valid_crl"
+        reason:
+        skip_in: ['midstream_sail']
     skip_subsuites:
       - name: "external_ca"
         reason: ""
@@ -231,6 +234,42 @@ test_suites:
       - name: "TestGatewayConformance/eNamespaceNone"
         reason: ""
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/MeshHTTPRoute303Redirect"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/MeshHTTPRoute308Redirect"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoute303Redirect"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoute307Redirect"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoute308Redirect"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteCORS"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicy"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "GatewayInvalidTLSBackendConfiguration"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyObservedGenerationBump"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "GatewayInvalidFrontendClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "GatewayFrontendClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "GatewayFrontendInvalidDefaultClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   telemetry:
@@ -264,6 +303,9 @@ test_suites:
         reason: ""
         skip_in: ['midstream_helm']
       - name: "TestZtunnelFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestInPlaceUpgradeWebhookFailurePolicy"
         reason: ""
         skip_in: ['midstream_helm']
     skip_subsuites: []
