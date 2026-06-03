@@ -255,19 +255,19 @@ test_suites:
       - name: "TestGatewayConformance/BackendTLSPolicy"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "GatewayInvalidTLSBackendConfiguration"
+      - name: "TestGatewayConformance/GatewayInvalidTLSBackendConfiguration"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/BackendTLSPolicyObservedGenerationBump"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "GatewayInvalidFrontendClientCertificateValidation"
+      - name: "TestGatewayConformance/GatewayInvalidFrontendClientCertificateValidation"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "GatewayFrontendClientCertificateValidation"
+      - name: "TestGatewayConformance/GatewayFrontendClientCertificateValidation"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "GatewayFrontendInvalidDefaultClientCertificateValidation"
+      - name: "TestGatewayConformance/GatewayFrontendInvalidDefaultClientCertificateValidation"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
