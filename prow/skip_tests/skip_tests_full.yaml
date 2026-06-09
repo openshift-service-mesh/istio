@@ -89,6 +89,9 @@ test_suites:
       - name: "TestGatewayAPIRequestAuthentication"
         reason: "Gateway API ingress does not provide routable HTTP address on OCP"
         skip_in: ['midstream_sail','midstream_helm']
+      - name: "TestSidecarMutualTlsOrigination/valid_crl"
+        reason: "CRL revocation does not propagate to sidecar on OCP — cri-o ConfigMap volume update behavior prevents CRL from taking effect"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestNormalization"
         reason: ""
         skip_in: ['downstream','midstream_sail']
@@ -156,6 +159,9 @@ test_suites:
       - name: "TestCrossNamespaceWaypoint"
         reason: "Cross-namespace waypoint routing times out on OCP — TODO: fix by setting EnableCNI=true for OCP in tests/integration/ambient/waypoint/main_test.go (it is the only ambient suite with EnableCNI=false)"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWasmPluginConfigurations"
+        reason: "WASM OCI filter injection does not function on OCP — response header never injected by WASM plugin"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestDirect/sidecar"
         reason: "Sidecar echo pods are not deployed on OCP due to SCC constraints in ambient mode"
         skip_in: ['downstream','midstream_sail','midstream_helm']
@@ -193,6 +199,18 @@ test_suites:
       - name: "TestDashboard/pilot-dashboard.json"
         reason: ""
         skip_in: ['downstream','midstream_sail']
+      - name: "TestCustomizeMetrics"
+        reason: "WASM v8 runtime not functional on OCP — custom metric labels and response code bucketing require WASM filter state"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestImagePullPolicy"
+        reason: "WASM v8 runtime not functional on OCP — plugin header injection never executes"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestImagePullPolicyWithHTTP"
+        reason: "WASM v8 runtime not functional on OCP — plugin header injection never executes"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewaySelection"
+        reason: "WASM v8 runtime not functional on OCP — plugin header injection never executes"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestProxyTracingOpenTelemetryProvider/grpc_exporter"
         reason: "OTel collector grpc exporter does not receive traces on OCP — likely network/deployment issue"
         skip_in: ['downstream','midstream_sail','midstream_helm']
