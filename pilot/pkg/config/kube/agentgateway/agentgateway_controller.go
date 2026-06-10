@@ -262,7 +262,7 @@ func (c *Controller) buildResourceCollections(opts krt.OptionsBuilder) {
 	}, opts.WithName("AgentgatewayGatewayClasses")...)
 
 	gatewayClassStatus, gatewayClasses := gatewaycommon.GatewayClassesCollection(agwGatewayClasses, opts)
-	status.RegisterStatus(c.status, gatewayClassStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, gatewayClassStatus, GetStatus)
 
 	referenceGrants := gatewaycommon.BuildReferenceGrants(gatewaycommon.ReferenceGrantsCollection(c.inputs.ReferenceGrants, opts))
 	listenerSetIntialStatus, listenerSets := ListenerSetCollection(
@@ -314,15 +314,15 @@ func (c *Controller) buildResourceCollections(opts krt.OptionsBuilder) {
 		DomainSuffix:       c.domainSuffix,
 	}
 	backendTLSStatus, backendTLSPolicies := BackendTLSPolicyCollection(backendTLSInputs, opts)
-	status.RegisterStatus(c.status, backendTLSStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, backendTLSStatus, GetStatus)
 
 	agwResources, routeAttachments := c.buildAgwResources(gateways, referenceGrants, inferencePolicies, backendTLSPolicies, opts)
 
 	gatewayFinalStatus := c.buildFinalGatewayStatus(gatewayInitialStatus, routeAttachments, opts)
-	status.RegisterStatus(c.status, gatewayFinalStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, gatewayFinalStatus, GetStatus)
 
 	listenerSetFinalStatus := c.buildFinalListenerSetStatus(listenerSetIntialStatus, routeAttachments, opts)
-	status.RegisterStatus(c.status, listenerSetFinalStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, listenerSetFinalStatus, GetStatus)
 
 	httpRoutesByInferencePool := krt.NewIndex(c.inputs.HTTPRoutes, "inferencepool-route", indexHTTPRouteByInferencePool)
 	inferencePoolStatus, _ := InferencePoolCollection(
@@ -334,7 +334,7 @@ func (c *Controller) buildResourceCollections(opts krt.OptionsBuilder) {
 		opts,
 	)
 	if features.EnableGatewayAPIInferenceExtension {
-		status.RegisterStatus(c.status, inferencePoolStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+		status.RegisterStatus(c.status, inferencePoolStatus, GetStatus)
 	}
 
 	// TODO(jaellio): Source addresses from the ambientindex so the agentgateway proxies get the same

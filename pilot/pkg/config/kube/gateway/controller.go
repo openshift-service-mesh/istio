@@ -237,7 +237,7 @@ func NewController(
 	httpRoutesByInferencePool := krt.NewIndex(inputs.HTTPRoutes, "inferencepool-route", indexHTTPRouteByInferencePool)
 
 	GatewayClassStatus, GatewayClasses := gatewaycommon.GatewayClassesCollection(inputs.GatewayClasses, opts)
-	status.RegisterStatus(c.status, GatewayClassStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, GatewayClassStatus, GetStatus)
 
 	ReferenceGrants := gatewaycommon.BuildReferenceGrants(gatewaycommon.ReferenceGrantsCollection(inputs.ReferenceGrants, opts))
 	ListenerSetStatus, ListenerSets := ListenerSetCollection(
@@ -294,7 +294,7 @@ func NewController(
 		controllers.WithMaxAttempts(5))
 
 	if features.EnableGatewayAPIInferenceExtension {
-		status.RegisterStatus(c.status, InferencePoolStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+		status.RegisterStatus(c.status, InferencePoolStatus, GetStatus)
 	}
 
 	RouteParents := BuildRouteParents(Gateways)
@@ -314,25 +314,25 @@ func NewController(
 		routeInputs,
 		opts,
 	)
-	status.RegisterStatus(c.status, tcpRoutes.Status, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, tcpRoutes.Status, GetStatus)
 	tlsRoutes := TLSRouteCollection(
 		inputs.TLSRoutes,
 		routeInputs,
 		opts,
 	)
-	status.RegisterStatus(c.status, tlsRoutes.Status, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, tlsRoutes.Status, GetStatus)
 	httpRoutes := HTTPRouteCollection(
 		inputs.HTTPRoutes,
 		routeInputs,
 		opts,
 	)
-	status.RegisterStatus(c.status, httpRoutes.Status, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, httpRoutes.Status, GetStatus)
 	grpcRoutes := GRPCRouteCollection(
 		inputs.GRPCRoutes,
 		routeInputs,
 		opts,
 	)
-	status.RegisterStatus(c.status, grpcRoutes.Status, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, grpcRoutes.Status, GetStatus)
 
 	RouteAttachments := krt.JoinCollection([]krt.Collection[RouteAttachment]{
 		tcpRoutes.RouteAttachments,
@@ -365,10 +365,10 @@ func NewController(
 	)
 
 	GatewayFinalStatus := FinalGatewayStatusCollection(GatewaysStatus, RouteAttachments, RouteAttachmentsIndex, opts)
-	status.RegisterStatus(c.status, GatewayFinalStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, GatewayFinalStatus, GetStatus)
 
 	ListenerSetFinalStatus := FinalListenerSetStatusCollection(ListenerSetStatus, RouteAttachments, RouteAttachmentsIndex, opts)
-	status.RegisterStatus(c.status, ListenerSetFinalStatus, GetStatus, c.tagWatcher.AccessUnprotected())
+	status.RegisterStatus(c.status, ListenerSetFinalStatus, GetStatus)
 
 	// Merge HTTP and gRPC base VirtualServices together so routes on the same
 	// gateway+hostname are combined into a single VirtualService, allowing
