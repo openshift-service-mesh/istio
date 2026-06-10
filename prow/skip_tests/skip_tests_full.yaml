@@ -1,0 +1,246 @@
+# Test Configuration - Full Test Suite (release-1.28)
+# This file centralizes test run configuration for all runners (downstream, jenkins, etc.)
+# The data are used to run Istio Integration tests, to fill the command:
+# integ-suite-ocp.sh ${test_suite} ${skip_tests} ${skip_subsuites} ${run_tests_only}
+#
+
+test_suites:
+  pilot:
+    skip_tests:
+      - name: "TestGatewayConformance"
+        reason: ""
+        skip_in: ['midstream_sail','midstream_helm']
+      - name: "TestGateway/managed-owner"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestCNIVersionSkew"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway"
+        reason: ""
+        skip_in: ['midstream_sail','midstream_helm']
+      - name: "TestAuthZCheck"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestKubeInject"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestRevisionTags"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallByRevision"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallWithSetFlag"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallCustomFile"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestUninstallPurge"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestCNIRaceRepair"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestValidation"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestWebhook"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestMultiRevision"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestAnalysisWritesStatus"
+        reason: ""
+        skip_in: ['midstream_sail']
+      - name: "TestLocality"
+        reason: ""
+        skip_in: ['midstream_sail']
+      - name: "TestPreserveHTTPHeaderCaseConfiguration"
+        reason: ""
+        skip_in: ['midstream_sail']
+      - name: "TestPilotResourceFilter"
+        reason: "Gateway spec.allowedListeners field not present in OCP Gateway API CRDs"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidKind"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyObservedGenerationBump"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicy"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+    skip_subsuites: []
+    run_tests_only: []
+  security:
+    skip_tests:
+      - name: "TestAuthz_CustomServer"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestGatewayAPIRequestAuthentication"
+        reason: "Gateway API ingress does not provide routable HTTP address on OCP"
+        skip_in: ['midstream_sail','midstream_helm']
+      - name: "TestSidecarMutualTlsOrigination/valid_crl"
+        reason: "CRL revocation does not propagate to sidecar on OCP — cri-o ConfigMap volume update behavior prevents CRL from taking effect"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestNormalization"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestTlsGatewaysWithQUIC"
+        reason: "QUIC protocol is not supported by OSSM yet. In midstream, AWS platform does not support QUIC, so the test skipped."
+        skip_in: ['downstream']
+      - name: "TestMtlsGatewaysWithQUIC"
+        reason: "QUIC protocol is not supported by OSSM yet. In midstream, AWS platform does not support QUIC, so the test skipped."
+        skip_in: ['downstream']
+    skip_subsuites:
+      - name: "external_ca"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "file_mounted_certs"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "policy_attachment_only"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+    run_tests_only: []
+  ambient:
+    skip_tests:
+      - name: "TestTrafficWithCNIUpgrade"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestCNIMisconfigHealsOnRestart"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestAPIServer"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestTCPRoute"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestTLSRoute"
+        reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWaypointAsEgressGateway/http_origination_route_with_BackendTLSPolicy"
+        reason: "Disabling because it requires experimental CRDs(#72020)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWaypointAsEgressGateway/http_origination_targetPort_with_BackendTLSPolicy"
+        reason: "Disabling because it requires experimental CRDs(#72020)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestTrafficWithEstablishedPodsIfCNIMissing"
+        reason: "The test modifies Istio configuration during the test execution. Sail flow does not support it yet"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestTaintsRemoved"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestTrafficWithCNIRepair"
+        reason: "Uses common_deploy.NewOrFail which deploys sidecar-injected echo pods that fail on OCP due to SCC constraints"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWaypointChanges"
+        reason: "The test modifies Istio configuration during the test execution. Sail flow does not support it yet"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestZtunnelSecureMetrics"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestZtunnelCRL"
+        reason: "CRL revocation does not propagate to ztunnel on OCP — revoked certs continue to be accepted"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestCrossNamespaceWaypoint"
+        reason: "Cross-namespace waypoint routing times out on OCP — TODO: fix by setting EnableCNI=true for OCP in tests/integration/ambient/waypoint/main_test.go (it is the only ambient suite with EnableCNI=false)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestWasmPluginConfigurations"
+        reason: "WASM OCI filter injection does not function on OCP — response header never injected by WASM plugin"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestDirect/sidecar"
+        reason: "Sidecar echo pods are not deployed on OCP due to SCC constraints in ambient mode"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestServiceRestart"
+        reason: "Requires sidecar echo pods which are not deployed on OCP due to SCC constraints in ambient mode"
+        skip_in: ['midstream_helm']
+      - name: "TestZtunnelRestart"
+        reason: "Requires sidecar echo pods which are not deployed on OCP due to SCC constraints in ambient mode"
+        skip_in: ['midstream_helm']
+      - name: "TestWaypointWithInvalidBackend"
+        reason: "Requires sidecar echo pods which are not deployed on OCP due to SCC constraints in ambient mode"
+        skip_in: ['midstream_helm']
+      - name: "TestWaypointWithSidecarBackend"
+        reason: "Requires sidecar echo pods which are not deployed on OCP due to SCC constraints in ambient mode"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+    skip_subsuites:
+      - name: "pqc"
+        reason: "This is a temporary change until we have ztunnel compiled with OpenSSL 3.5."
+        skip_in: ['midstream_sail','midstream_helm']
+      - name: "waypoint"
+        reason: "All tests in this subsuite are skipped on OCP — skip the entire subsuite to avoid empty TestMain failures and wasteful Istio installations"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "cniupgrade"
+        reason: "All tests in this subsuite are skipped on OCP — skip the entire subsuite to avoid empty TestMain failures and wasteful Istio installations"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "crl"
+        reason: "All tests in this subsuite are skipped on OCP — skip the entire subsuite to avoid empty TestMain failures and wasteful Istio installations"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "cnirepair"
+        reason: "All tests in this subsuite are skipped on OCP — skip the entire subsuite to avoid empty TestMain failures and wasteful Istio installations"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+    run_tests_only: []
+  telemetry:
+    skip_tests:
+      - name: "TestDashboard/pilot-dashboard.json"
+        reason: ""
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestCustomizeMetrics"
+        reason: "WASM v8 runtime not functional on OCP — custom metric labels and response code bucketing require WASM filter state"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestImagePullPolicy"
+        reason: "WASM v8 runtime not functional on OCP — plugin header injection never executes"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestImagePullPolicyWithHTTP"
+        reason: "WASM v8 runtime not functional on OCP — plugin header injection never executes"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewaySelection"
+        reason: "WASM v8 runtime not functional on OCP — plugin header injection never executes"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestProxyTracingOpenTelemetryProvider/grpc_exporter"
+        reason: "OTel collector grpc exporter does not receive traces on OCP — likely network/deployment issue"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+    skip_subsuites: []
+    run_tests_only: []
+  helm:
+    skip_tests:
+      - name: "TestAmbientInstall"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestAmbientInstallMultiNamespace"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestCanaryUpgradeFromTwoMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestStableRevisionLabelsUpgradeFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestStableRevisionLabelsUpgradeFromTwoMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestAmbientInPlaceUpgradeFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestZtunnelFromPreviousMinorRelease"
+        reason: ""
+        skip_in: ['midstream_helm']
+      - name: "TestAmbientStableRevisionLabelsGatewayStatus"
+        reason: ""
+        skip_in: ['midstream_helm']
+    skip_subsuites: []
+    run_tests_only: []

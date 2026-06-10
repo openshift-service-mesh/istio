@@ -45,7 +45,6 @@ import (
 	"istio.io/istio/pkg/test/framework/resource/config/apply"
 	"istio.io/istio/pkg/test/util/file"
 	ingressutil "istio.io/istio/tests/integration/security/sds_ingress/util"
-	"istio.io/istio/tests/integration/security/util/cert"
 )
 
 var (
@@ -62,13 +61,19 @@ func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
 		Label(testlabel.CustomSetup).
+<<<<<<< HEAD
 		Label(testlabel.PQC).
+=======
+		SkipIf("PQC is not working on FIPS cluster due to X25519MLKEM", func(t resource.Context) bool {
+			return t.Settings().Fips
+		}).
+>>>>>>> 7a510288a4 (Cherry-pick downstream changes to release-1.30 (#761))
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
 			ctx.Settings().Ambient = true
 			ctx.Settings().SkipVMs()
+			ctx.Settings().EchoImage = "quay.io/sail-dev/app:release-1.28"
 			if ctx.Settings().AmbientMultiNetwork {
 				cfg.DeployEastWestGW = true
-				cfg.Values["pilot.env.AMBIENT_ENABLE_MULTI_NETWORK"] = "true"
 			} else {
 				cfg.DeployEastWestGW = false
 			}
@@ -83,7 +88,7 @@ values:
     env:
       COMPLIANCE_POLICY: "pqc"
 `
-		}, cert.CreateCASecretAlt)).
+		}, nil)).
 		Setup(crd.DeployGatewayAPI).
 		SetupParallel(
 			namespace.Setup(&internalNs, namespace.Config{
@@ -136,9 +141,6 @@ spec:
     mode: STRICT`
 			return ctx.ConfigIstio().YAML(i.Settings().SystemNamespace, peerAuthYaml).Apply(apply.Wait)
 		}).
-		SkipIf("K8s < 1.34 doesn't support PQC", func(ctx resource.Context) bool {
-			return !ctx.Clusters().Default().MinKubeVersion(34)
-		}).
 		Run()
 }
 
@@ -154,13 +156,11 @@ func setupAppsConfig(_ resource.Context) error {
 			Namespace: externalNs,
 			Ports:     ports.All(),
 			TLSSettings: &common.TLSSettings{
-				RootCert:   file.MustAsString(path.Join(env.IstioSrc, "tests/testdata/certs/dns/root-cert.pem")),
-				ClientCert: file.MustAsString(path.Join(env.IstioSrc, "tests/testdata/certs/dns/cert-chain.pem")),
-				Key:        file.MustAsString(path.Join(env.IstioSrc, "tests/testdata/certs/dns/key.pem")),
-				Hostname:   "server.default.svc",
-				MinVersion: "1.3",
-				// Server only accepts the X25519MLKEM768 curve to verify that
-				// waypoint TLS origination correctly negotiates PQC key exchange.
+				RootCert:         file.MustAsString(path.Join(env.IstioSrc, "tests/testdata/certs/dns/root-cert.pem")),
+				ClientCert:       file.MustAsString(path.Join(env.IstioSrc, "tests/testdata/certs/dns/cert-chain.pem")),
+				Key:              file.MustAsString(path.Join(env.IstioSrc, "tests/testdata/certs/dns/key.pem")),
+				Hostname:         "server.default.svc",
+				MinVersion:       "1.3",
 				CurvePreferences: []string{"X25519MLKEM768"},
 			},
 			Subsets: []echo.SubsetConfig{{
@@ -252,7 +252,12 @@ spec:
 						MinVersion:       "1.3",
 						CurvePreferences: []string{"P-256"},
 					},
+<<<<<<< HEAD
 					Check: check.Or(check.TLSHandshakeFailure(), check.ConnectionResetByPeer()),
+=======
+					Timeout: 5 * time.Second,
+					Check:   check.TLSHandshakeFailure(),
+>>>>>>> 7a510288a4 (Cherry-pick downstream changes to release-1.30 (#761))
 				})
 			})
 		})
@@ -261,6 +266,31 @@ spec:
 func TestWaypoint(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(t framework.TestContext) {
+<<<<<<< HEAD
+=======
+			serviceEntryYaml := `
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: external
+spec:
+  hosts:
+  - server.{{.ExternalNamespace}}.svc.cluster.local
+  ports:
+  - name: https
+    number: 8443
+    protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+  endpoints:
+  - address: server.{{.ExternalNamespace}}.svc.cluster.local`
+			t.ConfigIstio().
+				Eval(internalNs.Name(), map[string]string{
+					"ExternalNamespace": externalNs.Name(),
+				}, serviceEntryYaml).
+				ApplyOrFail(t)
+
+>>>>>>> 7a510288a4 (Cherry-pick downstream changes to release-1.30 (#761))
 			t.NewSubTest("TLS connection with PQC-compliant settings should succeed").Run(func(t framework.TestContext) {
 				a.CallOrFail(t, echo.CallOptions{
 					To: server,
@@ -346,7 +376,7 @@ spec:
 						"ExternalNamespace": externalNs.Name(),
 						"EgressNamespace":   egressNamespace.Name(),
 					}, serviceEntryWithWaypointYaml).
-					ApplyOrFail(t, apply.CleanupConditionally)
+					ApplyOrFail(t)
 
 				rootCert := file.AsStringOrFail(t, path.Join(env.IstioSrc, "tests/testdata/certs/dns/root-cert.pem"))
 				caConfigMap := `
