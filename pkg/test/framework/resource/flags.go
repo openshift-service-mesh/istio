@@ -200,6 +200,9 @@ func init() {
 	flag.BoolVar(&settingsFromCommandLine.Ambient, "istio.test.ambient", settingsFromCommandLine.Ambient,
 		"Indicate the use of ambient mesh.")
 
+	flag.BoolVar(&settingsFromCommandLine.Fips, "istio.test.fips", settingsFromCommandLine.Fips,
+		"Indicate the use of fips compliant cluster.")
+
 	flag.BoolVar(&settingsFromCommandLine.GatewayAPIOnly, "istio.test.gatewayAPIOnly", settingsFromCommandLine.GatewayAPIOnly,
 		"Indicate a Gateway API-only cluster (no sidecar injection). Echo apps will be deployed without istio-proxy overlay.")
 
