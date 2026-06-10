@@ -76,50 +76,11 @@ function download_ztunnel_if_necessary () {
   cp -f "${2}" "${TARGET_OUT_LINUX}/ztunnel"
 }
 
-function maybe_build_ztunnel() {
-  # TODO detect git changes or something to avoid unnecessarily building
-  # BUILD_ZTUNNEL=1 with no BUILD_ZTUNNEL_REPO tries to infer BUILD_ZTUNNEL_REPO
-  if [[ "${BUILD_ZTUNNEL_REPO:-}" == "" ]] && [[ "${BUILD_ZTUNNEL:-}" != "" ]]; then
-    local ZTUNNEL_DIR
-	ZTUNNEL_DIR="$(pwd)/../ztunnel"
-    if [[ -d "${ZTUNNEL_DIR}" ]]; then
-      BUILD_ZTUNNEL_REPO="${ZTUNNEL_DIR}"
-    else
-      echo "No directory at ${ZTUNNEL_DIR}"
-      return
-    fi
-  fi
-  if [[ "${BUILD_ZTUNNEL_REPO:-}" == "" ]]; then
-    return
-  fi
-
-  if ! which cargo; then
-    echo "the rust toolchain (cargo, etc) is required for building ztunnel"
-    return 1
-  fi
-
-  pushd "${BUILD_ZTUNNEL_REPO}"
-  cargo build --profile="${BUILD_ZTUNNEL_PROFILE:-dev}" ${BUILD_ZTUNNEL_TARGET:+--target=${BUILD_ZTUNNEL_TARGET}}
-
-  local ZTUNNEL_BIN_PATH
-  if [[ "${BUILD_ZTUNNEL_PROFILE:-dev}" == "dev" ]]; then
-      ZTUNNEL_BIN_PATH=debug
-  else
-      ZTUNNEL_BIN_PATH="${BUILD_ZTUNNEL_PROFILE}"
-  fi
-  ZTUNNEL_BIN_PATH="out/rust/${BUILD_ZTUNNEL_TARGET:+${BUILD_ZTUNNEL_TARGET}/}${ZTUNNEL_BIN_PATH}/ztunnel"
-
-  echo "Copying $(pwd)/${ZTUNNEL_BIN_PATH} to ${TARGET_OUT_LINUX}/ztunnel"
-  mkdir -p "${TARGET_OUT_LINUX}"
-  cp "${ZTUNNEL_BIN_PATH}" "${TARGET_OUT_LINUX}/ztunnel"
-  popd
-}
-
 # ztunnel binary vars (TODO handle debug builds, arm, darwin etc.)
-ISTIO_ZTUNNEL_BASE_URL="${ISTIO_ZTUNNEL_BASE_URL:-https://storage.googleapis.com/istio-build/ztunnel}"
+ISTIO_ZTUNNEL_BASE_URL="${ISTIO_ZTUNNEL_BASE_URL:-https://storage.googleapis.com/maistra-prow-testing/ztunnel}"
 
 # If we are not using the default, assume its private and we need to authenticate
-if [[ "${ISTIO_ZTUNNEL_BASE_URL}" != "https://storage.googleapis.com/istio-build/ztunnel" ]]; then
+if [[ "${ISTIO_ZTUNNEL_BASE_URL}" != "https://storage.googleapis.com/istio-build/ztunnel" && "${ISTIO_ZTUNNEL_BASE_URL}" != "https://storage.googleapis.com/maistra-prow-testing/ztunnel" ]]; then
   AUTH_HEADER="Authorization: Bearer $(gcloud auth print-access-token)"
   export AUTH_HEADER
 fi
@@ -133,5 +94,4 @@ ISTIO_ZTUNNEL_LINUX_DEBUG_DIR="${ISTIO_ZTUNNEL_LINUX_DEBUG_DIR:-${TARGET_OUT_LIN
 ISTIO_ZTUNNEL_LINUX_RELEASE_PATH="${ISTIO_ZTUNNEL_LINUX_RELEASE_PATH:-${ISTIO_ZTUNNEL_LINUX_RELEASE_DIR}/${ISTIO_ZTUNNEL_LINUX_RELEASE_NAME}}"
 
 set_download_command
-maybe_build_ztunnel
 download_ztunnel_if_necessary "${ISTIO_ZTUNNEL_RELEASE_URL}" "$ISTIO_ZTUNNEL_LINUX_RELEASE_PATH" "ztunnel"

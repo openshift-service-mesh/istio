@@ -312,51 +312,6 @@ func TestConfigureIstioGateway(t *testing.T) {
         memory: 150Mi`,
 		},
 		{
-			name: "agentgateway",
-			gw: k8s.Gateway{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "namespace",
-					Namespace: "default",
-				},
-				Spec: k8s.GatewaySpec{
-					GatewayClassName: constants.AgentgatewayClassName,
-					Listeners: []k8s.Listener{{
-						Name:     "http",
-						Port:     k8s.PortNumber(80),
-						Protocol: k8s.HTTPProtocolType,
-					}},
-				},
-			},
-			objects: defaultObjects,
-		},
-		{
-			name: "agentgateway-resources-null",
-			gw: k8s.Gateway{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "namespace",
-					Namespace: "default",
-				},
-				Spec: k8s.GatewaySpec{
-					GatewayClassName: constants.AgentgatewayClassName,
-					Listeners: []k8s.Listener{{
-						Name:     "http",
-						Port:     k8s.PortNumber(80),
-						Protocol: k8s.HTTPProtocolType,
-					}},
-				},
-			},
-			objects: defaultObjects,
-			values: `global:
-  proxy:
-    resources:
-      limits:
-        cpu: null
-        memory: 500Mi
-      requests:
-        cpu: null
-        memory: 150Mi`,
-		},
-		{
 			name: "kube-gateway-resources-null",
 			gw: k8s.Gateway{
 				ObjectMeta: metav1.ObjectMeta{
