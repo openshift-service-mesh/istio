@@ -32,6 +32,8 @@ set -u
 set -x
 # fail if any command in the pipeline fails
 set -o pipefail
+# Show logs on error
+trap 'echo "❌ Script failed. Dumping log:"; echo "--------------------------------"; cat "$LOG_FILE"; echo "--------------------------------"; exit 1' ERR
 
 SKIP_CLEANUP="${SKIP_CLEANUP:-"false"}"
 
@@ -73,13 +75,32 @@ CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
 
 # get istio version from versions.yaml
 VERSION_FILE="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/pkg/istioversion/versions.yaml"
-if [ -z "${ISTIO_VERSION:-}" ]; then
-  ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
-    grep -E 'name: v[0-9]+\.[0-9]+-latest' | \
-    sed -E 's/.*(v[0-9]+\.[0-9]+)-latest.*/\1/' | \
-    sort -Vr | head -n1)-latest"
+if [ -n "${ISTIO_VERSION:-}" ]; then
+  echo "Using provided ISTIO_VERSION: $ISTIO_VERSION"
+else
+  if [ "$CONVERTER_BRANCH" = "main" ]; then
+    # If CONVERTER_BRANCH is main, change it to master and get the ref field
+    ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
+      grep -A 1 'name: master' | \
+      grep 'ref:' | \
+      sed -E 's/.*ref: (.*)/\1/' | \
+      head -n1)"
+  else
+    # Handle version stripping for CONVERTER_BRANCH like "release-1.28" -> "1.28"
+    if [[ "$CONVERTER_BRANCH" =~ ^release- ]]; then
+      # Strip "release-" prefix to get version (e.g., release-1.28 -> 1.28)
+      SEARCH_VERSION="${CONVERTER_BRANCH#release-}"
+    fi
+
+    # Look for the version with -latest suffix
+    ISTIO_VERSION="$(curl -s "$VERSION_FILE" | \
+      grep -E "name: v${SEARCH_VERSION}-latest" | \
+      sed -E "s/.*(v${SEARCH_VERSION}-latest).*/\1/" | \
+      head -n1)"
+  fi
+  echo "Using fetched ISTIO_VERSION: $ISTIO_VERSION"
 fi
-  
+
 NAMESPACE="${NAMESPACE:-istio-system}"
 ISTIOCNI_NAMESPACE="${ISTIOCNI_NAMESPACE:-istio-cni}"
 ZTUNNEL_NAMESPACE="${ZTUNNEL_NAMESPACE:-ztunnel}"
@@ -112,6 +133,7 @@ function install_istio_cni(){
   if [ "$AMBIENT" == "true" ]; then
     yq -i '.spec.profile="ambient"' "$TMP_ISTIOCNI"
   fi
+  patch_istiocni_config
   oc apply -f "$TMP_ISTIOCNI"
   echo "istioCNI created."
 }
@@ -159,7 +181,17 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured tracing for Zipkin."
 
-  elif [[ "$WORKDIR" == *"-pilot-/"* ]]; then
+  elif [[ "$WORKDIR" == *"telemetry-tracing-otelcollector"* ]]; then
+  # Workaround until https://issues.redhat.com/browse/OSSM-10480 fixed
+    yq eval 'del(.spec.values.pilot.envVarFrom)' -i "$WORKDIR/$SAIL_IOP_FILE"
+    otel_cred="$(kubectl -n "$NAMESPACE" get secret otel-credentials -o jsonpath='{.data.bearer-token}' | base64 -d)"
+    CRED="$otel_cred" yq eval '
+      .spec.values.pilot.env.OTEL_GRPC_AUTHORIZATION = env(CRED) |
+      .spec.values.pilot.env.OTEL_GRPC_AUTHORIZATION style="double"
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured tracing for OtelCollector."
+
+  elif [[ "$WORKDIR" == *"pilot-"* ]]; then
     # Fix for TestTraffic/dns/a/ tests
     yq eval '
       .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"
@@ -169,6 +201,9 @@ function patch_config() {
 
   # Set Ambient config if set
   if [[ "$AMBIENT" == "true" ]]; then
+    yq eval '.spec.profile = "ambient"' -i "$WORKDIR/$SAIL_IOP_FILE"
+    yq eval ".spec.values.pilot.trustedZtunnelNamespace = \"$ZTUNNEL_NAMESPACE\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+
     # Add discoverySelectors to match Helm behavior
     yq eval '.spec.values.meshConfig.discoverySelectors = [{"matchExpressions": [{"key": "istio.io/test-exclude-namespace", "operator": "DoesNotExist"}]}]' -i "$WORKDIR/$SAIL_IOP_FILE"
 
@@ -285,8 +320,18 @@ function patch_gateway_config() {
   fi
 }
 
+function patch_istiocni_config() {
+  # Config set for "TestCNINeverEnrollsPodsInExcludedNamespaces" ambient cni test.
+  # The "cni-excluded-ns" NS name hardcoded here, since it's being created after Istio
+  # deployment by Sail and as a result could not be fetched dynamically.
+  if [[ "$WORKDIR" == *"ambient-cni-"* ]]; then
+      yq -i '.spec.values.cni.excludeNamespaces = ["istio-system", "cni-excluded-ns"]' "$TMP_ISTIOCNI"
+      echo "Ambient CNI config applied"
+  fi
+}
+
 function patch_ztunnel_config() {
-  if [[ "$WORKDIR" == *"-ambient-pqc-"* ]]; then
+  if [[ "$WORKDIR" == *"ambient-pqc"* ]]; then
       yq -i '.spec.values.ztunnel.env.COMPLIANCE_POLICY="pqc"' "$TMP_ZTUNNEL"
   fi
 }
@@ -315,17 +360,28 @@ function cleanup_istio() {
   echo "Starting Istio cleanup..."
   TIMEOUT_DURATION="120s"
   
-  echo "Deleting Istio resources from namespace $ISTIOCNI_NAMESPACE..."
-  kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  echo "Deleting IstioCNI resources from namespace $ISTIOCNI_NAMESPACE..."
+  kubectl delete istiocni --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $ISTIOCNI_NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$ISTIOCNI_NAMESPACE" --force --grace-period=0 --wait=true
   }
 
+  echo "Deleting ZTunnel resources from namespace $ZTUNNEL_NAMESPACE..."
+  kubectl delete ztunnel --all -n "$ZTUNNEL_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+    echo "Normal delete failed for $ZTUNNEL_NAMESPACE or timed out, applying force delete..."
+    kubectl delete all --all -n "$ZTUNNEL_NAMESPACE" --force --grace-period=0 --wait=true
+  }
+
   echo "Deleting Istio resources from namespace $NAMESPACE..."
-  kubectl delete all --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
+  kubectl delete istio --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $NAMESPACE or timed out, applying force delete..."
     kubectl delete all --all -n "$NAMESPACE" --force --grace-period=0 --wait=true
   }
+
+  echo "Delete Istio, IstioCNI and Ztunnel namespaces"
+  kubectl delete namespace "$ISTIOCNI_NAMESPACE" || true
+  kubectl delete namespace "$ZTUNNEL_NAMESPACE" || true
+  kubectl delete namespace "$NAMESPACE" || true
 
   echo "Cleanup completed successfully."
 }

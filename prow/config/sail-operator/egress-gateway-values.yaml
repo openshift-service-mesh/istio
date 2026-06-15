@@ -1,0 +1,6 @@
+platform: openshift
+autoscaling:
+  enabled: false
+
+service:
+  type: ClusterIP

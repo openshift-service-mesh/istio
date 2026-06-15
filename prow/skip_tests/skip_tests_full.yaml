@@ -1,4 +1,4 @@
-# Test Configuration - Full Test Suite (release-1.28)
+# Test Configuration - Full Test Suite (release-1.30)
 # This file centralizes test run configuration for all runners (downstream, jenkins, etc.)
 # The data are used to run Istio Integration tests, to fill the command:
 # integ-suite-ocp.sh ${test_suite} ${skip_tests} ${skip_subsuites} ${run_tests_only}
@@ -244,3 +244,4 @@ test_suites:
         skip_in: ['midstream_helm']
     skip_subsuites: []
     run_tests_only: []
+
