@@ -11,13 +11,15 @@ index 8bcade301e..4a70d7fc23 100644
 @@ -104,6 +104,7 @@ func TestGatewayConformance(t *testing.T) {
  			hostnameType := v1.AddressType("Hostname")
  			istioVersion, _ := env.ReadVersion()
+ 			// Honor the --istio.test.kube.gatewayClassName flag if set; otherwise this is DefaultGatewayClassName ("istio").
+ 			gatewayClassName := i.Settings().GatewayClassName
  			opts := suite.ConformanceOptions{
 +				BaseManifests:           "gateway-conformance-manifests.yaml",
  				Client:                   c,
  				Clientset:                gatewayConformanceInputs.Client.Kube(),
  				ClientOptions:            clientOptions,
-@@ -111,6 +113,6 @@ func TestGatewayConformance(t *testing.T) {
- 				GatewayClassName:         "istio",
+ 				RestConfig:               gatewayConformanceInputs.Client.RESTConfig(),
+ 				GatewayClassName:         gatewayClassName,
  				Debug:                    scopes.Framework.DebugEnabled(),
  				CleanupBaseResources:     gatewayConformanceInputs.Cleanup,
 -				ManifestFS:               []fs.FS{&conformance.Manifests},
