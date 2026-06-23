@@ -188,6 +188,15 @@ function patch_config() {
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Configured tracing for OtelCollector."
 
+  elif [[ "$WORKDIR" == *"telemetry-policy-dynamicdns"* ]]; then
+    yq eval '
+      .spec.values.meshConfig.enablePrometheusMerge = true |
+      .spec.values.meshConfig.outboundTrafficPolicy.mode = "ALLOW_ANY_DYNAMIC_DNS" |
+      .spec.values.meshConfig.outboundTrafficPolicy.tls.mode = "SIMPLE" |
+      .spec.values.meshConfig.outboundTrafficPolicy.tls.insecureSkipVerify = true
+    ' -i "$WORKDIR/$SAIL_IOP_FILE"
+    echo "Configured telemetry policy for DynamicDNS"
+
   elif [[ "$WORKDIR" == *"pilot-"* ]]; then
     # Fix for TestTraffic/dns/a/ tests
     yq eval '
