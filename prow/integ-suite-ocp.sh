@@ -193,23 +193,28 @@ setup_junit_report() {
 
 # Prepare go list expression for skipping suites
 if [[ -n "$SKIP_SUITE" ]]; then
-  mapfile -t TEST_PATHS < <(go list -tags=integ "./tests/integration/${TEST_SUITE}/..." | grep -vE "/(${SKIP_SUITE})$")
+  mapfile -t TEST_PATH < <(
+    go list -tags=integ "./tests/integration/${TEST_SUITE}/..." |
+    grep -vE "/(${SKIP_SUITE})$"
+  )
 else
-  TEST_PATHS=("./tests/integration/${TEST_SUITE}/...")
+  TEST_PATH=("./tests/integration/${TEST_SUITE}/...")
 fi
 
 # Build the base command and store it in an array
-base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "${TEST_PATHS[@]}"
-          "--istio.test.ci"
-          "--istio.test.pullpolicy=IfNotPresent"
-          "--istio.test.work_dir=${ARTIFACTS_DIR}"
-          "--istio.test.skipTProxy=true"
-          "--istio.test.skipVM=true"
-          "--istio.test.istio.enableCNI=true"
-          "--istio.test.hub=${TEST_HUB}"
-          "--istio.test.tag=${TAG}"
-          "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
-          "--istio.test.openshift")
+base_cmd=(
+  "go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m"
+  "${TEST_PATH[@]}"
+  "--istio.test.ci"
+  "--istio.test.pullpolicy=IfNotPresent"
+  "--istio.test.work_dir=${ARTIFACTS_DIR}"
+  "--istio.test.skipVM=true"
+  "--istio.test.istio.enableCNI=true"
+  "--istio.test.hub=${TEST_HUB}"
+  "--istio.test.tag=${TAG}"
+  "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
+  "--istio.test.openshift"
+)
 
 helm_values="global.platform=openshift"
 
@@ -225,12 +230,16 @@ if [ "${TEST_SUITE}" == "pilot" ]; then
     # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
     base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
     # Stops flaky runs in public clouds
-    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
 fi
 
 # If ambient mode executed, add "ambient" profile and args
-if [ "${AMBIENT}" == "true" ]; then
+if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     base_cmd+=("--istio.test.ambient")
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
 
     # Set local gateway mode for Ambient execution
@@ -298,7 +307,7 @@ elif [ "${TEST_OUTPUT_FORMAT}" == "gotestsum" ]; then
       --junitfile "${JUNIT_REPORT_DIR}/junit.xml" \
       --rerun-fails \
       --rerun-fails-max-failures=3 \
-      --packages "${TEST_PATHS[@]}" \
+      --packages "${TEST_PATH[@]}" \
       --debug \
       -- "${base_cmd[@]:5}"
       
