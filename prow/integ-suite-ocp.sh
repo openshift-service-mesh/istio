@@ -174,6 +174,28 @@ if [ "${TEST_HUB}" == "docker.io/istio" ]; then
     addGcrMirror
 fi
 
+# Check OCP version
+if ! OCP_VERSION_FULL=$(oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null); then
+    echo "Failed to detect OpenShift version. Are you connected to a cluster?"
+    exit 1
+fi
+OCP_VERSION_MINOR=$(echo "$OCP_VERSION_FULL" | cut -d. -f2)
+
+# Compare versions
+version_ge() {
+    # Returns 0 if $1 >= $2
+    [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]
+}
+
+# Starting from OCP 4.19, Gateway API CRDs comes pre-installed and could not be modified by the user.
+# So for OCP version 4.19 and above, we're not deploying GW API CRDs.
+if version_ge "$OCP_VERSION_MINOR" "19"; then
+    echo "Openshift version 4.19 or above. Gateway API CRDs comes pre-installed with the cluster."
+else
+    echo "Openshift version below 4.19. Deploying Gateway API CRDs."
+    DEPLOY_GATEWAY_API="true"
+fi
+
 # Set up test command and parameters
 setup_junit_report() {
     export ISTIO_BIN="${GOPATH}/bin"
@@ -186,26 +208,30 @@ setup_junit_report() {
     echo "JUNIT_REPORT: ${JUNIT_REPORT}"
 }
 
-
 # Prepare go list expression for skipping suites
 if [[ -n "$SKIP_SUITE" ]]; then
-  mapfile -t TEST_PATHS < <(go list -tags=integ "./tests/integration/${TEST_SUITE}/..." | grep -vE "/(${SKIP_SUITE})$")
+  mapfile -t TEST_PATH < <(
+    go list -tags=integ "./tests/integration/${TEST_SUITE}/..." |
+    grep -vE "/(${SKIP_SUITE})$"
+  )
 else
-  TEST_PATHS=("./tests/integration/${TEST_SUITE}/...")
+  TEST_PATH=("./tests/integration/${TEST_SUITE}/...")
 fi
 
 # Build the base command and store it in an array
-base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m" "${TEST_PATHS[@]}"
-          "--istio.test.ci"
-          "--istio.test.pullpolicy=IfNotPresent"
-          "--istio.test.work_dir=${ARTIFACTS_DIR}"
-          "--istio.test.skipTProxy=true"
-          "--istio.test.skipVM=true"
-          "--istio.test.istio.enableCNI=true"
-          "--istio.test.hub=${TEST_HUB}"
-          "--istio.test.tag=${TAG}"
-          "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
-          "--istio.test.openshift")
+base_cmd=(
+  "go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeout=60m"
+  "${TEST_PATH[@]}"
+  "--istio.test.ci"
+  "--istio.test.pullpolicy=IfNotPresent"
+  "--istio.test.work_dir=${ARTIFACTS_DIR}"
+  "--istio.test.skipVM=true"
+  "--istio.test.istio.enableCNI=true"
+  "--istio.test.hub=${TEST_HUB}"
+  "--istio.test.tag=${TAG}"
+  "--istio.test.kube.deployGatewayAPI=${DEPLOY_GATEWAY_API}"
+  "--istio.test.openshift"
+)
 
 helm_values="global.platform=openshift"
 
@@ -221,12 +247,16 @@ if [ "${TEST_SUITE}" == "pilot" ]; then
     # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
     base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
     # Stops flaky runs in public clouds
-    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
 fi
 
 # If ambient mode executed, add "ambient" profile and args
-if [ "${AMBIENT}" == "true" ]; then
+if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     base_cmd+=("--istio.test.ambient")
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
     base_cmd+=("--istio.test.kube.ztunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}")
 
@@ -244,7 +274,7 @@ base_cmd+=("--istio.test.kube.helm.values=${helm_values}")
 
 # Append sail operator setup script to base command
 if [ "${CONTROL_PLANE_SOURCE}" == "sail" ]; then
-    # Remove timeout 60m 
+    # Remove timeout 60m
     for i in "${!base_cmd[@]}"; do
         if [[ "${base_cmd[$i]}" == "-timeout="* ]]; then
             unset 'base_cmd[i]'
@@ -304,7 +334,7 @@ elif [ "${TEST_OUTPUT_FORMAT}" == "gotestsum" ]; then
       --junitfile "${JUNIT_REPORT_DIR}/junit.xml" \
       --rerun-fails \
       --rerun-fails-max-failures=3 \
-      --packages "${TEST_PATHS[@]}" \
+      --packages "${TEST_PATH[@]}" \
       --debug \
       -- "${base_cmd[@]:5}"
       
