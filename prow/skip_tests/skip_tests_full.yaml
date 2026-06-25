@@ -277,6 +277,9 @@ test_suites:
       - name: "TestDashboard/pilot-dashboard.json"
         reason: ""
         skip_in: ['downstream','midstream_sail']
+      - name: "TestAllowAnyDynamicDNSPolicy/http-via-dfp"
+        reason: "The tests changes its configuration during the execution. Sail does not support it. Disabling one of the tests"
+        skip_in: ['downstream','midstream_sail']
     skip_subsuites: []
     run_tests_only: []
   helm:
