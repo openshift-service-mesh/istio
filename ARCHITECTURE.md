@@ -13,13 +13,13 @@ graph TD
         ca[Certificate Authority<br/>security/pkg/server]
     end
 
-    subgraph Data Plane — Sidecar Mode
+    subgraph Data Plane - Sidecar Mode
         agent[Istio Agent<br/>pilot/cmd/pilot-agent]
         envoy[Envoy Sidecar Proxy]
         agent -- "certs, health" --> envoy
     end
 
-    subgraph Data Plane — Ambient Mode
+    subgraph Data Plane - Ambient Mode
         ztunnel[Ztunnel<br/>L4 node proxy]
         waypoint[Waypoint Proxy<br/>L7 Envoy]
     end
