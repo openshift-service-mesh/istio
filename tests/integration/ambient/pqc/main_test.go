@@ -67,7 +67,6 @@ func TestMain(m *testing.M) {
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
 			ctx.Settings().Ambient = true
 			ctx.Settings().SkipVMs()
-			ctx.Settings().EchoImage = "quay.io/sail-dev/app:release-1.28"
 			if ctx.Settings().AmbientMultiNetwork {
 				cfg.DeployEastWestGW = true
 			} else {
