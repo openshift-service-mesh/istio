@@ -83,15 +83,26 @@ check_cluster_operators() {
   while [ "$(date +%s)" -lt $end_time ]; do
     # This command uses jq to count operators that are not Available, or are Progressing, or are Degraded.
     # A healthy cluster should have a count of 0.
-    local unstable_operators
-    unstable_operators=$(oc get clusteroperator -o json | jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length')
+    local oc_output unstable_operators
+    if ! oc_output=$(oc get clusteroperator -o json 2>&1); then
+      echo "WARNING: 'oc get clusteroperator' failed (transient error?): ${oc_output}" >&2
+      sleep 15
+      continue
+    fi
+
+    if ! unstable_operators=$(jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length' <<< "${oc_output}"); then
+      echo "WARNING: jq failed to parse clusteroperator output" >&2
+      sleep 15
+      continue
+    fi
 
     if [[ $unstable_operators -eq 0 ]]; then
       echo "All cluster operators are stable."
       return 0
     fi
 
-    echo -n "."
+    echo "WARNING: ${unstable_operators} unstable operator(s):" >&2
+    jq -r '.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | .metadata.name as $name | .status.conditions[] | select((.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | "  \($name): \(.type)=\(.status) — \(.message)"' <<< "${oc_output}" >&2
     sleep 15
   done
 
