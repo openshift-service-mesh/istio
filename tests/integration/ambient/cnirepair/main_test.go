@@ -157,32 +157,30 @@ func SetupApps(t resource.Context, i istio.Instance, apps *EchoDeployments) erro
 
 	// Skip sidecar deployment on OpenShift — sidecar-injected pods in ambient mode
 	// fail to start due to SCC constraints
-	if !t.Settings().OpenShift {
-		builder = builder.WithConfig(echo.Config{
-			Service:        Sidecar,
-			Namespace:      apps.Namespace,
-			Ports:          ports.All(),
-			ServiceAccount: true,
-			Subsets: []echo.SubsetConfig{
-				{
-					Replicas: 1,
-					Version:  "v1",
-					Labels: map[string]string{
-						"sidecar.istio.io/inject":       "true",
-						label.IoIstioDataplaneMode.Name: constants.DataplaneModeNone,
-					},
-				},
-				{
-					Replicas: 1,
-					Version:  "v2",
-					Labels: map[string]string{
-						"sidecar.istio.io/inject":       "true",
-						label.IoIstioDataplaneMode.Name: constants.DataplaneModeNone,
-					},
+	builder = builder.WithConfig(echo.Config{
+		Service:        Sidecar,
+		Namespace:      apps.Namespace,
+		Ports:          ports.All(),
+		ServiceAccount: true,
+		Subsets: []echo.SubsetConfig{
+			{
+				Replicas: 1,
+				Version:  "v1",
+				Labels: map[string]string{
+					"sidecar.istio.io/inject":       "true",
+					label.IoIstioDataplaneMode.Name: constants.DataplaneModeNone,
 				},
 			},
-		})
-	}
+			{
+				Replicas: 1,
+				Version:  "v2",
+				Labels: map[string]string{
+					"sidecar.istio.io/inject":       "true",
+					label.IoIstioDataplaneMode.Name: constants.DataplaneModeNone,
+				},
+			},
+		},
+	})
 
 	// Build the applications
 	echos, err := builder.Build()
