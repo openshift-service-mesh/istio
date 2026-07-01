@@ -70,47 +70,8 @@ set -u
 # Print commands
 set -x
 
-check_cluster_operators() {
-  # Check if jq is installed
-  if ! command -v jq &> /dev/null; then
-    echo "ERROR: jq is required for the cluster operator health check. Please install jq."
-    exit 1
-  fi
-
-  local timeout_seconds=600 # 10 minutes
-  echo "Validating OpenShift cluster operators are stable..."
-  local end_time=$(( $(date +%s) + timeout_seconds ))
-
-  while [ "$(date +%s)" -lt $end_time ]; do
-    # This command uses jq to count operators that are not Available, or are Progressing, or are Degraded.
-    # A healthy cluster should have a count of 0.
-    local oc_output unstable_operators
-    if ! oc_output=$(oc get clusteroperator -o json 2>&1); then
-      echo "WARNING: 'oc get clusteroperator' failed (transient error?): ${oc_output}" >&2
-      sleep 15
-      continue
-    fi
-
-    if ! unstable_operators=$(jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length' <<< "${oc_output}"); then
-      echo "WARNING: jq failed to parse clusteroperator output" >&2
-      sleep 15
-      continue
-    fi
-
-    if [[ $unstable_operators -eq 0 ]]; then
-      echo "All cluster operators are stable."
-      return 0
-    fi
-
-    echo "WARNING: ${unstable_operators} unstable operator(s):" >&2
-    jq -r '.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | .metadata.name as $name | .status.conditions[] | select((.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | "  \($name): \(.type)=\(.status) — \(.message)"' <<< "${oc_output}" >&2
-    sleep 15
-  done
-
-  echo "ERROR: Timeout reached. Not all cluster operators are stable."
-  oc get clusteroperator
-  exit 1
-}
+# shellcheck source=prow/check-cluster-ready.sh
+source "${ROOT}/prow/check-cluster-ready.sh"
 
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
