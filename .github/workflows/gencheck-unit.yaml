@@ -1,0 +1,33 @@
+name: Gencheck and Unit Tests
+
+on:
+  pull_request:
+    branches:
+      - master
+      - release-*
+  push:
+    branches:
+      - master
+      - release-*
+
+# Cancel in-flight runs for the same PR or branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gencheck:
+    name: Gen Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: make gen-check
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -e T=-v build racetest binaries-test
