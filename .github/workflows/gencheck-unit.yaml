@@ -27,14 +27,15 @@ jobs:
   unit:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      # --privileged is required by tests that use github.com/howardjohn/unshare-go:
-      # their init() calls unshare(CLONE_NEWUSER|CLONE_NEWNET) at binary start-up,
-      # which the default Docker seccomp profile blocks. NET_ADMIN/NET_RAW alone
-      # are not sufficient. run.sh reads DOCKER_RUN_OPTIONS and appends the value
-      # to its docker run command.
-      - run: make -e "T=-v -count=1" build racetest binaries-test
-        env:
-          DOCKER_RUN_OPTIONS: --privileged
+      # Install the exact Go version declared in go.mod so we run directly on the
+      # runner VM (BUILD_WITH_CONTAINER=0) instead of Docker-in-Docker.
+      # Running natively gives tests full kernel access: user namespaces, iptables,
+      # ip6tables, and nftables all work without privilege escalation tricks.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
