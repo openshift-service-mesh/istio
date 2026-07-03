@@ -30,9 +30,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      # NET_ADMIN + NET_RAW are required by iptables tests (TestRunInSandbox,
-      # TestIdempotentEquivalentRerun). run.sh reads DOCKER_RUN_OPTIONS and
-      # appends them to the docker run command it launches.
+      # --privileged is required by tests that use github.com/howardjohn/unshare-go:
+      # their init() calls unshare(CLONE_NEWUSER|CLONE_NEWNET) at binary start-up,
+      # which the default Docker seccomp profile blocks. NET_ADMIN/NET_RAW alone
+      # are not sufficient. run.sh reads DOCKER_RUN_OPTIONS and appends the value
+      # to its docker run command.
       - run: make -e "T=-v -count=1" build racetest binaries-test
         env:
-          DOCKER_RUN_OPTIONS: --cap-add=NET_ADMIN --cap-add=NET_RAW
+          DOCKER_RUN_OPTIONS: --privileged
