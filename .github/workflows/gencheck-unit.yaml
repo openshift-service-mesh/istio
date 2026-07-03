@@ -50,4 +50,14 @@ jobs:
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+      # Ubuntu 24.04 does not load legacy iptables kernel modules by default
+      # (nftables is the system default).  Without them, iptables-legacy-save
+      # fails and DetectIptablesVersion falls through to iptables-nft, whose
+      # restore is idempotent for chain creation (nftables semantics).  That
+      # breaks the ForceApply assertion in TestIdempotentEquivalentRerun which
+      # expects an error when re-creating existing chains.
+      # OCP/Prow nodes have these modules loaded (kube-proxy uses legacy
+      # iptables), so loading them here replicates that environment exactly.
+      - name: Load iptables legacy kernel modules
+        run: sudo modprobe ip_tables ip6_tables iptable_nat ip6table_nat iptable_filter ip6table_filter || true
       - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
