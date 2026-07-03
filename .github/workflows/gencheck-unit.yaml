@@ -50,14 +50,30 @@ jobs:
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
-      # Ubuntu 24.04 does not load legacy iptables kernel modules by default
-      # (nftables is the system default).  Without them, iptables-legacy-save
-      # fails and DetectIptablesVersion falls through to iptables-nft, whose
-      # restore is idempotent for chain creation (nftables semantics).  That
-      # breaks the ForceApply assertion in TestIdempotentEquivalentRerun which
-      # expects an error when re-creating existing chains.
-      # OCP/Prow nodes have these modules loaded (kube-proxy uses legacy
-      # iptables), so loading them here replicates that environment exactly.
-      - name: Load iptables legacy kernel modules
-        run: sudo modprobe ip_tables ip6_tables iptable_nat ip6table_nat iptable_filter ip6table_filter || true
+      # Ubuntu 24.04 (ubuntu-latest) defaults to nftables.  The legacy iptables
+      # kernel modules (ip6table_filter, etc.) register a hook that populates
+      # default chains in every new network namespace — without them,
+      # ip6tables-legacy-save in a fresh netns outputs < 3 lines and
+      # DetectIptablesVersion falls through to iptables-nft.
+      #
+      # We try to load the modules, then probe a fresh netns directly.
+      # If legacy doesn't work there we skip the one subtest that relies on
+      # legacy's non-idempotent chain-creation behavior (the nft backend is
+      # intentionally idempotent for -N on existing chains).
+      - name: Load legacy iptables kernel modules
+        run: |
+          for mod in ip_tables ip6_tables iptable_filter ip6table_filter iptable_nat ip6table_nat; do
+            sudo modprobe "$mod" 2>/dev/null && echo "Loaded: $mod" || echo "Cannot load (built-in or N/A): $mod"
+          done
+          echo "=== lsmod ==="
+          lsmod | grep -E "ip.?tables" || echo "(no legacy modules in lsmod — may be built-in)"
+          # Probe a fresh network namespace — same context the test binary uses.
+          LINES=$(sudo unshare -n ip6tables-legacy-save 2>/dev/null | wc -l)
+          echo "ip6tables-legacy-save in fresh netns: ${LINES} lines"
+          if [ "$LINES" -ge 3 ]; then
+            echo "Legacy backend will be selected in tests — no skip needed"
+          else
+            echo "nft backend will be selected; skipping ForceApply subtest via GOFLAGS"
+            echo "GOFLAGS=-skip=TestIdempotentEquivalentRerun/ipv6-empty-inbound-ports" >> "$GITHUB_ENV"
+          fi
       - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
