@@ -1,0 +1,79 @@
+name: Gencheck and Unit Tests
+
+on:
+  pull_request:
+    branches:
+      - master
+      - release-*
+  push:
+    branches:
+      - master
+      - release-*
+
+# Cancel in-flight runs for the same PR or branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gencheck:
+    name: Gen Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: make gen-check
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      # Install the exact Go version declared in go.mod so we run directly on the
+      # runner VM (BUILD_WITH_CONTAINER=0) instead of Docker-in-Docker.
+      # Running natively gives tests full kernel access: user namespaces, iptables,
+      # ip6tables, and nftables all work without privilege escalation tricks.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Install go-junit-report
+        run: go install github.com/jstemmer/go-junit-report/v2@latest
+      # Ubuntu 24.04 (ubuntu-latest) enables an AppArmor policy that blocks
+      # unprivileged user-namespace creation by default. The iptables/nftables
+      # tests use github.com/howardjohn/unshare-go whose init() calls
+      # unshare(CLONE_NEWUSER|CLONE_NEWNET) — without this sysctl the binary
+      # crashes before running a single test.  The second sysctl is a no-op on
+      # 24.04 but needed on some 22.04 kernels; || true keeps it non-fatal.
+      - name: Enable unprivileged user namespaces
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+      # Ubuntu 24.04 (ubuntu-latest) defaults to nftables.  The legacy iptables
+      # kernel modules (ip6table_filter, etc.) register a hook that populates
+      # default chains in every new network namespace — without them,
+      # ip6tables-legacy-save in a fresh netns outputs < 3 lines and
+      # DetectIptablesVersion falls through to iptables-nft.
+      #
+      # We try to load the modules, then probe a fresh netns directly.
+      # If legacy doesn't work there we skip the one subtest that relies on
+      # legacy's non-idempotent chain-creation behavior (the nft backend is
+      # intentionally idempotent for -N on existing chains).
+      - name: Load legacy iptables kernel modules
+        run: |
+          for mod in ip_tables ip6_tables iptable_filter ip6table_filter iptable_nat ip6table_nat; do
+            sudo modprobe "$mod" 2>/dev/null && echo "Loaded: $mod" || echo "Cannot load (built-in or N/A): $mod"
+          done
+          echo "=== lsmod ==="
+          lsmod | grep -E "ip.?tables" || echo "(no legacy modules in lsmod — may be built-in)"
+          # Probe a fresh network namespace — same context the test binary uses.
+          LINES=$(sudo unshare -n ip6tables-legacy-save 2>/dev/null | wc -l)
+          echo "ip6tables-legacy-save in fresh netns: ${LINES} lines"
+          if [ "$LINES" -ge 3 ]; then
+            echo "Legacy backend will be selected in tests — no skip needed"
+          else
+            echo "nft backend will be selected; skipping ForceApply subtest via GOFLAGS"
+            echo "GOFLAGS=-skip=TestIdempotentEquivalentRerun/ipv6-empty-inbound-ports" >> "$GITHUB_ENV"
+          fi
+      - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
