@@ -29,6 +29,7 @@ set -x
 
 WD=$(dirname "$0")
 WD=$(cd "$WD"; pwd)
+ROOT=$(dirname "$WD")
 TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
 export IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-"istio-images"}"
@@ -36,52 +37,98 @@ SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
 SAIL_OPERATOR_BRANCH="${SAIL_OPERATOR_BRANCH:-}"  # Will be auto-detected if not set
 IBM="${IBM:-"false"}"
 
+# Source lib.sh once at the top to make set_topology_value available
+# shellcheck source=prow/lib.sh
+if [ -f "${ROOT}/prow/lib.sh" ]; then
+  source "${ROOT}/prow/lib.sh"
+fi
+
 function setup_internal_registry() {
-  # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target. 
-  # If there is no internal registry, the test can't be executed targeting to the internal registry
+  # Unified registry setup for single-cluster and multicluster modes
+  # For single-cluster: sets up current cluster
+  # For multicluster: sets up all clusters in a loop
 
-  # Check if the registry pods are running
-  oc get pods -n openshift-image-registry --no-headers | grep -v "Running\|Completed" && echo "It looks like the OCP image registry is not deployed or Running. This tests scenario requires it. Aborting." && exit 1
+  echo "Setting up internal registry for all clusters..."
 
-  # Check if default route already exist
-  if [ -z "$(oc get route default-route -n openshift-image-registry -o name)" ]; then
-    echo "Route default-route does not exist, patching DefaultRoute to true on Image Registry."
-    oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
-  
-    timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash --verbose -c \
-      "until oc get route default-route -n openshift-image-registry &> /dev/null; do sleep 5; done && echo 'The 'default-route' has been created.'"
+  # Determine which clusters to configure
+  local -a target_clusters=()
+  local -a target_contexts=()
+
+  if [[ "${TOPOLOGY:-SINGLE_CLUSTER}" != "SINGLE_CLUSTER" ]]; then
+    # Multicluster: use all clusters from topology
+    target_clusters=("${CLUSTER_NAMES[@]}")
+    target_contexts=("${cluster_contexts[@]}")
+  else
+    # Single cluster: create single-element arrays with current cluster
+    target_clusters=("default")
+    target_contexts=("$(kubectl config current-context)")
   fi
 
-  # Get the registry route
-  URL=$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
-  # Hub will be equal to the route url/project-name(NameSpace)
-  export HUB="${URL}/${IMAGE_NAMESPACE}"
-  echo "Internal registry URL: ${HUB}"
+  # Store all registry URLs for build phase
+  export CLUSTER_REGISTRY_URLS=()
 
-  # Create namespace from where the image are going to be pushed
-  # This is needed because in the internal registry the images are stored in the namespace.
-  # If the namespace already exist, it will not fail
-  oc create namespace "${IMAGE_NAMESPACE}" || true
-  oc create namespace "${NAMESPACE}" || true
+  # Loop over all clusters and setup each registry
+  for i in "${!target_clusters[@]}"; do
+    local cluster_name="${target_clusters[i]}"
+    local context="${target_contexts[i]}"
 
-  deploy_rolebinding
+    echo ""
+    echo "=== Setting up registry for cluster: ${cluster_name} ==="
 
-  # Login to the internal registry when running on CRC (Only for local development)
-  # Take into count that you will need to add before the registry URL as Insecure registry in "/etc/docker/daemon.json"
-  if [[ ${URL} == *".apps-crc.testing"* ]]; then
-    echo "Executing Docker login to the internal registry"
-    if ! oc whoami -t | docker login -u "$(oc whoami)" --password-stdin "${URL}"; then
-      echo "***** Error: Failed to log in to Docker registry."
-      echo "***** Check the error and if is related to 'tls: failed to verify certificate' please add the registry URL as Insecure registry in '/etc/docker/daemon.json'"
-      exit 1
+    # Check if the registry pods are running
+    if oc --context="${context}" get pods -n openshift-image-registry --no-headers 2>/dev/null | grep -v "Running\|Completed" | grep -q .; then
+      echo "Warning: Image registry in cluster ${cluster_name} is not fully deployed or running."
     fi
-  fi
+
+    # Check if default route already exist
+    if [ -z "$(oc --context="${context}" get route default-route -n openshift-image-registry -o name 2>/dev/null)" ]; then
+      echo "Route default-route does not exist, patching DefaultRoute to true on Image Registry."
+      oc --context="${context}" patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+
+      timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash --verbose -c \
+        "until oc --context=\"${context}\" get route default-route -n openshift-image-registry &> /dev/null; do sleep 5; done && echo 'The default-route has been created.'"
+    fi
+
+    # Get the registry route (external endpoint)
+    local registry_url
+    registry_url=$(oc --context="${context}" get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
+    CLUSTER_REGISTRY_URLS+=("${registry_url}/${IMAGE_NAMESPACE}")
+    echo "Registry URL: ${registry_url}/${IMAGE_NAMESPACE}"
+
+    # Create namespace
+    oc --context="${context}" create namespace "${NAMESPACE}" 2>/dev/null || true
+    oc --context="${context}" create namespace "${IMAGE_NAMESPACE}" 2>/dev/null || true
+
+    # Deploy rolebinding with context flag
+    deploy_rolebinding "--context=${context}"
+
+    # Login to registry if CRC
+    if [[ ${registry_url} == *".apps-crc.testing"* ]]; then
+      echo "Executing Docker login to the internal registry"
+      if ! oc --context="${context}" whoami -t | docker login -u "$(oc --context="${context}" whoami)" --password-stdin "${registry_url}"; then
+        echo "***** Error: Failed to log in to Docker registry."
+        echo "***** Check the error and if is related to 'tls: failed to verify certificate' please add the registry URL as Insecure registry in '/etc/docker/daemon.json'"
+        exit 1
+      fi
+    fi
+  done
+
+  export CLUSTER_REGISTRY_URLS
+
+  # Set HUB to first cluster's registry (for build)
+  export HUB="${CLUSTER_REGISTRY_URLS[0]}"
+  echo ""
+  echo "=== Registry setup completed for all clusters ==="
+  echo "HUB (build target): ${HUB}"
+  echo "Total clusters configured: ${#CLUSTER_REGISTRY_URLS[@]}"
 }
 
 function deploy_rolebinding() {
-    # Adding roles to avoid the need to be authenticated to push images to the internal registry 
+    local context_flag="${1:-}"
+
+    # Adding roles to avoid the need to be authenticated to push images to the internal registry
     # and pull them later in the any namespace
-      echo '
+    echo '
 kind: List
 apiVersion: v1
 items:
@@ -114,7 +161,7 @@ items:
   - kind: Group
     apiGroup: rbac.authorization.k8s.io
     name: system:unauthenticated
-' | oc apply -f -
+' | oc ${context_flag} apply -f -
 }
 
 # Set gcr.io as mirror to docker.io/istio to be able to get images in downstream tests.
@@ -288,11 +335,382 @@ function deploy_operator(){
 
   git clone --depth 1 --branch "${SAIL_OPERATOR_BRANCH}" $SAIL_REPO_URL || { echo "Failed to clone sail-operator repo on branch ${SAIL_OPERATOR_BRANCH}"; exit 1; }
   cd sail-operator
-  make deploy || { echo "sail-operator make deploy failed"; cleanup_sail_repo ; exit 1; }
-  oc -n sail-operator wait --for=condition=Available deployment/sail-operator --timeout=240s || { echo "Failed to start sail-operator"; exit 1; }
+
+  if [[ "${TOPOLOGY:-SINGLE_CLUSTER}" != "SINGLE_CLUSTER" ]] && [[ ${#cluster_contexts[@]} -gt 0 ]]; then
+    IFS=':' read -r -a kubeconfig_paths <<< "${KUBECONFIG}"
+
+    for i in "${!cluster_contexts[@]}"; do
+      local ctx="${cluster_contexts[i]}"
+      local cluster_kubeconfig="${kubeconfig_paths[i]}"
+
+      echo "Deploying sail-operator on ${ctx} (kubeconfig: ${cluster_kubeconfig})..."
+      KUBECONFIG="${cluster_kubeconfig}" make deploy || { echo "sail-operator make deploy failed on ${ctx}"; cleanup_sail_repo ; exit 1; }
+      oc --context="${ctx}" -n sail-operator wait --for=condition=Available deployment/sail-operator --timeout=240s || { echo "Failed to start sail-operator on ${ctx}"; exit 1; }
+      echo "Sail operator deployed on ${ctx}"
+    done
+  else
+    make deploy || { echo "sail-operator make deploy failed"; cleanup_sail_repo ; exit 1; }
+    oc -n sail-operator wait --for=condition=Available deployment/sail-operator --timeout=240s || { echo "Failed to start sail-operator"; exit 1; }
+  fi
 
   # Restore original env vars for subsequent Istio operations
   cleanup_sail_repo
   echo "Sail operator deployed from branch: ${SAIL_OPERATOR_BRANCH}"
 
 }
+
+# Multicluster setup functions
+
+function get_cluster_contexts() {
+  # Get matching contexts for all clusters in CLUSTER_NAMES array
+  # Returns: Populates cluster_contexts array with matching context for each cluster
+
+  cluster_contexts=()
+
+  # Get all available contexts once
+  mapfile -t available_contexts < <(kubectl config get-contexts -o name 2>/dev/null || true)
+
+  # Find matching context for each cluster
+  for cluster_name in "${CLUSTER_NAMES[@]}"; do
+    local cluster_context=""
+    for context in "${available_contexts[@]}"; do
+      # Match exact cluster name or context containing cluster name
+      if [[ "${context}" == "${cluster_name}" ]] || [[ "${context}" == *"/${cluster_name}/"* ]] || [[ "${context}" == *"-${cluster_name}-"* ]]; then
+        cluster_context="${context}"
+        break
+      fi
+    done
+    cluster_contexts+=("${cluster_context}")
+  done
+
+  export cluster_contexts
+}
+
+function normalize_kubeconfig_contexts() {
+  # Automatically rename duplicate context/user names to match cluster names from topology
+  # This handles the common case where OCP kubeconfigs all have context name "admin" and user "admin"
+
+  echo "Normalizing kubeconfig contexts and users..."
+
+  if [ -z "${KUBECONFIG:-}" ]; then
+    echo "Error: KUBECONFIG is not set"
+    return 1
+  fi
+
+  # Save original KUBECONFIG
+  local original_kubeconfig="${KUBECONFIG}"
+
+  # Parse kubeconfig files
+  IFS=':' read -r -a kubeconfig_files <<< "${KUBECONFIG}"
+
+  if [ ${#kubeconfig_files[@]} -ne ${#CLUSTER_NAMES[@]} ]; then
+    echo "Warning: Number of kubeconfig files (${#kubeconfig_files[@]}) doesn't match number of clusters (${#CLUSTER_NAMES[@]})"
+  fi
+
+  # Check if normalization is needed: collect all context names
+  local -a file_contexts=()
+  local -A seen_contexts=()
+  local needs_normalization=0
+
+  for i in "${!kubeconfig_files[@]}"; do
+    local kconfig="${kubeconfig_files[i]}"
+    if [ ! -f "${kconfig}" ]; then
+      file_contexts+=("")
+      continue
+    fi
+
+    export KUBECONFIG="${kconfig}"
+    local ctx
+    ctx=$(kubectl config get-contexts -o name 2>/dev/null | head -n1)
+    file_contexts+=("${ctx}")
+
+    # Check if this context name is a duplicate OR not in expected names OR in wrong position
+    if [ -n "${ctx}" ]; then
+      if [[ -n "${seen_contexts[${ctx}]:-}" ]]; then
+        # Duplicate context name - needs normalization
+        needs_normalization=1
+      fi
+      seen_contexts["${ctx}"]=1
+
+      # Check if context name matches one of the expected cluster names
+      local is_expected=0
+      for expected_name in "${CLUSTER_NAMES[@]}"; do
+        if [ "${ctx}" == "${expected_name}" ]; then
+          is_expected=1
+          break
+        fi
+      done
+      if [ ${is_expected} -eq 0 ]; then
+        # Context name not in expected list - needs normalization
+        needs_normalization=1
+      fi
+
+      # Check if context is in the correct position
+      if [ $i -lt ${#CLUSTER_NAMES[@]} ]; then
+        local expected_for_position="${CLUSTER_NAMES[i]}"
+        if [ "${ctx}" != "${expected_for_position}" ]; then
+          needs_normalization=1
+        fi
+      fi
+    fi
+  done
+
+  # If already normalized correctly, just fix current-context fields and exit
+  if [ ${needs_normalization} -eq 0 ]; then
+    echo "All contexts already normalized correctly, skipping..."
+    for i in "${!kubeconfig_files[@]}"; do
+      local kconfig="${kubeconfig_files[i]}"
+      local ctx="${file_contexts[i]}"
+      if [ -f "${kconfig}" ] && [ -n "${ctx}" ]; then
+        export KUBECONFIG="${kconfig}"
+        sed -i "s/^current-context: .*/current-context: ${ctx}/" "${kconfig}"
+      fi
+    done
+    export KUBECONFIG="${original_kubeconfig}"
+    return 0
+  fi
+
+  # Perform normalization - rename contexts by position
+  echo "Performing context normalization..."
+  for i in "${!kubeconfig_files[@]}"; do
+    if [ $i -ge ${#CLUSTER_NAMES[@]} ]; then
+      break
+    fi
+
+    local kconfig="${kubeconfig_files[i]}"
+    local current_context="${file_contexts[i]}"
+    local target_name="${CLUSTER_NAMES[i]}"
+
+    if [ ! -f "${kconfig}" ] || [ -z "${current_context}" ]; then
+      continue
+    fi
+
+    export KUBECONFIG="${kconfig}"
+
+    # Get the user associated with this context
+    local current_user
+    current_user=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='${current_context}')].context.user}" 2>/dev/null || echo "")
+
+    # Rename context if needed
+    if [ "${current_context}" != "${target_name}" ]; then
+      echo "  Renaming context '${current_context}' -> '${target_name}' in ${kconfig}"
+      kubectl config rename-context "${current_context}" "${target_name}" 2>/dev/null || {
+        echo "  Warning: Failed to rename context in ${kconfig}"
+      }
+    fi
+
+    # Rename user if needed
+    if [ -n "${current_user}" ] && [ "${current_user}" != "${target_name}" ]; then
+      echo "  Renaming user '${current_user}' -> '${target_name}' in ${kconfig}"
+      sed -i "s/name: ${current_user}$/name: ${target_name}/g" "${kconfig}"
+      sed -i "s/user: ${current_user}$/user: ${target_name}/g" "${kconfig}"
+    fi
+
+    # Fix current-context field
+    sed -i "s/^current-context: .*/current-context: ${target_name}/" "${kconfig}"
+  done
+
+  # Restore original KUBECONFIG with all files
+  export KUBECONFIG="${original_kubeconfig}"
+
+  echo "Context and user normalization completed"
+}
+
+function load_cluster_topology() {
+  local topology_file="$1"
+
+  if [ ! -f "${topology_file}" ]; then
+    echo "Error: Topology file ${topology_file} not found"
+    exit 1
+  fi
+
+  echo "Loading cluster topology from ${topology_file}"
+  # Extract cluster names and networks from topology JSON
+  mapfile -t CLUSTER_NAMES < <(jq -r '.[] | .clusterName' "${topology_file}")
+  mapfile -t CLUSTER_NETWORKS < <(jq -r '.[] | .network' "${topology_file}")
+
+  export CLUSTER_NAMES
+  export CLUSTER_NETWORKS
+  export NUM_CLUSTERS="${#CLUSTER_NAMES[@]}"
+
+  echo "Loaded ${NUM_CLUSTERS} clusters from topology:"
+  for i in "${!CLUSTER_NAMES[@]}"; do
+    echo "  - ${CLUSTER_NAMES[i]} (network: ${CLUSTER_NETWORKS[i]})"
+  done
+
+  # Get cluster contexts once for all clusters
+  # Note: Context normalization should have been done before calling this function
+  get_cluster_contexts
+
+  echo "Resolved cluster contexts:"
+  for i in "${!CLUSTER_NAMES[@]}"; do
+    echo "  - ${CLUSTER_NAMES[i]} -> ${cluster_contexts[i]}"
+  done
+}
+
+function validate_ocp_multicluster_kubeconfigs() {
+  echo "Validating OCP multicluster kubeconfigs..."
+
+  # Check if KUBECONFIG environment variable is set
+  if [ -z "${KUBECONFIG:-}" ]; then
+    echo "Error: KUBECONFIG environment variable is not set"
+    echo "Expected format: KUBECONFIG=/path/to/primary.kubeconfig:/path/to/remote.kubeconfig"
+    exit 1
+  fi
+
+  echo "KUBECONFIG: ${KUBECONFIG}"
+
+  # Validate each cluster in topology has a matching context
+  local missing_contexts=()
+  for i in "${!CLUSTER_NAMES[@]}"; do
+    local cluster_name="${CLUSTER_NAMES[i]}"
+    local context="${cluster_contexts[i]}"
+
+    if [ -z "${context}" ]; then
+      missing_contexts+=("${cluster_name}")
+    else
+      echo "Found context for cluster ${cluster_name}: ${context}"
+    fi
+  done
+
+  if [ ${#missing_contexts[@]} -gt 0 ]; then
+    echo "Error: Missing contexts for the following clusters:"
+    printf '  - %s\n' "${missing_contexts[@]}"
+    echo ""
+    echo "Available contexts:"
+    mapfile -t available_contexts < <(kubectl config get-contexts -o name 2>/dev/null || true)
+    printf '  - %s\n' "${available_contexts[@]}"
+    exit 1
+  fi
+
+  # Validate cluster access by running oc cluster-info for each cluster
+  echo "Validating cluster access..."
+  for i in "${!CLUSTER_NAMES[@]}"; do
+    local cluster_name="${CLUSTER_NAMES[i]}"
+    local cluster_context="${cluster_contexts[i]}"
+
+    if ! oc --context="${cluster_context}" cluster-info &> /dev/null; then
+      echo "Error: Cannot access cluster ${cluster_name} using context ${cluster_context}"
+      exit 1
+    fi
+
+    echo "Successfully validated access to cluster ${cluster_name}"
+  done
+
+  echo "All multicluster kubeconfigs validated successfully"
+}
+
+function setup_ocp_multicluster_topology() {
+  echo "Setting up OCP multicluster topology configuration..."
+
+  local topology_file="$1"
+  local runtime_topology_file="${ARTIFACTS_DIR}/topology-config.json"
+
+  # Read the original topology JSON
+  local topology_json
+  topology_json=$(cat "${topology_file}")
+
+  # Extract kubeconfig paths from KUBECONFIG environment variable
+  IFS=':' read -r -a kubeconfig_paths <<< "${KUBECONFIG}"
+
+  # For each cluster, inject the kubeconfig path
+  for i in "${!CLUSTER_NAMES[@]}"; do
+    local cluster_name="${CLUSTER_NAMES[i]}"
+    local cluster_context="${cluster_contexts[i]}"
+
+    # Find the kubeconfig file that contains this context
+    local kubeconfig_path=""
+    for kconfig in "${kubeconfig_paths[@]}"; do
+      if kubectl --kubeconfig="${kconfig}" config get-contexts "${cluster_context}" &>/dev/null; then
+        kubeconfig_path="${kconfig}"
+        break
+      fi
+    done
+
+    if [ -z "${kubeconfig_path}" ]; then
+      echo "Warning: Could not find kubeconfig file for cluster ${cluster_name}, using merged KUBECONFIG"
+      # Use the first kubeconfig in the list as fallback
+      kubeconfig_path="${kubeconfig_paths[0]}"
+    fi
+
+    echo "Cluster ${cluster_name}: kubeconfig=${kubeconfig_path}"
+
+    # Inject kubeconfig path into topology JSON
+    topology_json=$(set_topology_value "${topology_json}" "${cluster_name}" "meta.kubeconfig" "${kubeconfig_path}")
+  done
+
+  # Write the runtime topology configuration
+  echo "${topology_json}" > "${runtime_topology_file}"
+
+  echo "Runtime topology configuration written to ${runtime_topology_file}"
+  echo "Topology contents:"
+  jq '.' "${runtime_topology_file}"
+
+  export INTEGRATION_TEST_TOPOLOGY_FILE="${runtime_topology_file}"
+}
+
+function generate_dynamic_topology() {
+  local num_clusters="$1"
+  local topology_type="${2:-MULTICLUSTER}"
+  local output_file="${ARTIFACTS_DIR}/dynamic-topology.json"
+
+  echo "Generating dynamic topology for ${num_clusters} clusters (type: ${topology_type})"
+
+  # Get available contexts from KUBECONFIG
+  mapfile -t available_contexts < <(kubectl config get-contexts -o name 2>/dev/null || true)
+
+  if [[ ${#available_contexts[@]} -lt ${num_clusters} ]]; then
+    echo "Error: Requested ${num_clusters} clusters, but only ${#available_contexts[@]} contexts available in KUBECONFIG"
+    exit 1
+  fi
+
+  # Well-known cluster names for Istio test framework
+  local -a cluster_names=("primary" "remote" "cross-network-primary")
+  local -a networks=("network-1" "network-1" "network-2")
+
+  # For ambient multicluster, use cross-network configuration
+  if [[ "${topology_type}" == "AMBIENT_MULTICLUSTER" ]]; then
+    networks=("network-1" "network-2" "network-3")
+  fi
+
+  # Build topology JSON
+  local topology_json="["
+
+  for i in $(seq 0 $((num_clusters - 1))); do
+    local cluster_name="${cluster_names[i]}"
+    local network="${networks[i]}"
+
+    # Add cluster entry
+    if [[ $i -gt 0 ]]; then
+      topology_json+=","
+    fi
+
+    topology_json+='
+  {
+    "kind": "Kubernetes",
+    "clusterName": "'${cluster_name}'",
+    "network": "'${network}'"'
+
+    # Add primaryClusterName for remote clusters
+    if [[ "${cluster_name}" == "remote" ]]; then
+      topology_json+=',
+    "primaryClusterName": "primary"'
+    fi
+
+    topology_json+='
+  }'
+  done
+
+  topology_json+='
+]'
+
+  # Write topology file
+  echo "${topology_json}" > "${output_file}"
+
+  echo "Dynamic topology generated at ${output_file}:"
+  jq '.' "${output_file}"
+
+  echo "${output_file}"
+}
+
+
