@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The integration test runtime is calling this script two times if istio.test.kube.controlPlaneInstaller parameter set. One call is with 
+# The integration test runtime is calling this script two times if istio.test.kube.controlPlaneInstaller parameter set. One call is with
 # install and another is with cleanup. On install script is used to convert istio in-cluster operator config to sail operator config and install istiod, istio-cni and gateways.
 # On cleanup  istiod, istio-cni, istio-ingressgateway and istio-engressgateway are cleaned
 # The output log of this script is printed under working directory set by: --istio.test.work_dir/sail-operator-setup.log
@@ -58,6 +58,8 @@ if ! command -v helm &> /dev/null; then
     echo "Helm is not installed. Please install Helm before proceeding."
     exit 1
 fi
+
+# ==================== Configuration ====================
 
 WD=$(dirname "$0")
 PROW="$(dirname "$WD")"
@@ -109,9 +111,13 @@ ISTIOCNI="${PROW}/config/sail-operator/istio-cni.yaml"
 ZTUNNEL="${PROW}/config/sail-operator/ztunnel.yaml"
 INGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/ingress-gateway-values.yaml"
 EGRESS_GATEWAY_VALUES="${PROW}/config/sail-operator/egress-gateway-values.yaml"
+EASTWEST_GATEWAY_VALUES="${PROW}/config/sail-operator/eastwest-gateway-values.yaml"
+EASTWEST_GATEWAY_AMBIENT_MANIFEST="${PROW}/config/sail-operator/eastwest-gateway-ambient.yaml"
 
 CONVERTER_ADDRESS="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/tools/configuration-converter.sh"
 CONVERTER_SCRIPT=$(basename "$CONVERTER_ADDRESS")
+
+# ==================== Install Functions ====================
 
 function download_execute_converter(){
   cd "${PROW}"
@@ -136,12 +142,22 @@ function install_istio_cni(){
 }
 
 function install_ztunnel() {
+  local cluster_idx="${1:-}"
   oc create namespace "${ZTUNNEL_NAMESPACE}" || true
   TMP_ZTUNNEL=$WORKDIR/ztunnel.yaml
   cp "$ZTUNNEL" "$TMP_ZTUNNEL"
   yq -i ".spec.namespace=\"$ZTUNNEL_NAMESPACE\"" "$TMP_ZTUNNEL"
   yq -i ".spec.version=\"$ISTIO_VERSION\"" "$TMP_ZTUNNEL"
   patch_ztunnel_config
+
+  if [ -n "$cluster_idx" ]; then
+    local cluster_name="${ALL_CLUSTER_NAMES[$cluster_idx]}"
+    local network="${ALL_CLUSTER_NETWORKS[$cluster_idx]}"
+    yq -i ".spec.values.ztunnel.multiCluster.clusterName = \"$cluster_name\"" "$TMP_ZTUNNEL"
+    yq -i ".spec.values.ztunnel.network = \"$network\"" "$TMP_ZTUNNEL"
+    echo "Set ztunnel cluster identity: clusterName=$cluster_name, network=$network"
+  fi
+
   oc apply -f "$TMP_ZTUNNEL"
   echo "ZTunnel created."
 }
@@ -157,6 +173,26 @@ function install_istio(){
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istiod --timeout=240s || { sleep 60; }
   echo "istiod created."
 }
+
+# Install ingress and egress gateways
+function install_gateways() {
+  helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
+  helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+
+  # Apply test-specific gateway patches
+  patch_gateway_config
+
+  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
+  oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
+  # patch egress gateway canonical-revision
+  yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
+  oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1)" -n istio-system; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
+  echo "Gateways created."
+}
+
+# ==================== Patch Functions ====================
 
 function patch_config() {
   # adds some control plane values that are mandatory and not available in iop.yaml
@@ -215,6 +251,15 @@ function patch_config() {
 
     # Add configurations for ServiceEntry/DNS resolution
     yq eval '.spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"' -i "$WORKDIR/$SAIL_IOP_FILE"
+
+    if [[ "${TOPOLOGY}" != "SINGLE_CLUSTER" ]]; then
+      yq eval '.spec.values.pilot.env.AMBIENT_ENABLE_MULTI_NETWORK = "true" |
+               .spec.values.pilot.env.AMBIENT_ENABLE_MULTI_NETWORK_INGRESS = "true" |
+               .spec.values.pilot.env.AMBIENT_ENABLE_BAGGAGE = "true"
+      ' -i "$WORKDIR/$SAIL_IOP_FILE"
+
+      echo "Configured Ambient mode for multi-network Istio."
+    fi
 
     echo "Configured Ambient mode for Istio."
   fi
@@ -302,30 +347,14 @@ function patch_ztunnel_config() {
   fi
 }
 
-# Install ingress and egress gateways
-function install_gateways() {
-  helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
-  helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
-
-  # Apply test-specific gateway patches
-  patch_gateway_config
-
-  oc apply -f "${WORKDIR}"/istio-ingressgateway.yaml
-  oc apply -f "${WORKDIR}"/istio-egressgateway.yaml
-  # patch egress gateway canonical-revision
-  yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
-  oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1)" -n istio-system; exit 1;}
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
-  echo "Gateways created."
-}
+# ==================== Cleanup Functions ====================
 
 function cleanup_istio() {
   set -euo pipefail
 
   echo "Starting Istio cleanup..."
   TIMEOUT_DURATION="120s"
-  
+
   echo "Deleting IstioCNI resources from namespace $ISTIOCNI_NAMESPACE..."
   kubectl delete istiocni --all -n "$ISTIOCNI_NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $ISTIOCNI_NAMESPACE or timed out, applying force delete..."
@@ -352,19 +381,281 @@ function cleanup_istio() {
   echo "Cleanup completed successfully."
 }
 
-if [ "$1" = "install" ]; then
-  download_execute_converter || { echo "Failed to execute converter"; exit 1; }
-  install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
-  if [ "$AMBIENT" == "true" ]; then
-    install_ztunnel || { echo "Failed to install ZTunnel"; exit 1; }
+# ==================== Multicluster: Topology Helpers ====================
+
+function load_topology() {
+  local topology_file="${INTEGRATION_TEST_TOPOLOGY_FILE:-${PROW}/artifacts/topology-config.json}"
+  if [ -z "$topology_file" ] || [ ! -f "$topology_file" ]; then
+    echo "Error: INTEGRATION_TEST_TOPOLOGY_FILE not set or file not found: ${topology_file:-unset}"
+    exit 1
   fi
-  install_istio || { echo "Failed to install Istio"; exit 1; }
-  install_gateways || { echo "Failed to install gateways"; exit 1; }
+
+  mapfile -t ALL_CLUSTER_NAMES < <(jq -r '.[].clusterName' "$topology_file")
+  mapfile -t ALL_CLUSTER_NETWORKS < <(jq -r '.[].network' "$topology_file")
+  mapfile -t ALL_CLUSTER_KUBECONFIGS < <(jq -r '.[].meta.kubeconfig // empty' "$topology_file")
+  mapfile -t ALL_CLUSTER_PRIMARY_NAMES < <(jq -r '.[] | .primaryClusterName // .clusterName' "$topology_file")
+  mapfile -t ALL_CLUSTER_CONFIG_NAMES < <(jq -r '.[] | .configClusterName // .primaryClusterName // .clusterName' "$topology_file")
+
+  echo "Loaded topology with ${#ALL_CLUSTER_NAMES[@]} clusters:"
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    echo "  ${ALL_CLUSTER_NAMES[$idx]} (network: ${ALL_CLUSTER_NETWORKS[$idx]}, primary: ${ALL_CLUSTER_PRIMARY_NAMES[$idx]})"
+  done
+}
+
+function is_primary() {
+  local idx="$1"
+  [ "${ALL_CLUSTER_PRIMARY_NAMES[$idx]}" = "${ALL_CLUSTER_NAMES[$idx]}" ]
+}
+
+function is_config() {
+  local idx="$1"
+  [ "${ALL_CLUSTER_CONFIG_NAMES[$idx]}" = "${ALL_CLUSTER_NAMES[$idx]}" ]
+}
+
+function is_remote() {
+  local idx="$1"
+  [ "${ALL_CLUSTER_PRIMARY_NAMES[$idx]}" != "${ALL_CLUSTER_NAMES[$idx]}" ]
+}
+
+function get_primary_index() {
+  local remote_idx="$1"
+  local primary_name="${ALL_CLUSTER_PRIMARY_NAMES[$remote_idx]}"
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    if [ "${ALL_CLUSTER_NAMES[$idx]}" = "$primary_name" ]; then
+      echo "$idx"
+      return
+    fi
+  done
+  echo "Error: Primary cluster '$primary_name' not found in topology" >&2
+  exit 1
+}
+
+function switch_cluster() {
+  local idx="$1"
+  local cluster_name="${ALL_CLUSTER_NAMES[$idx]}"
+  local kubeconfig="${ALL_CLUSTER_KUBECONFIGS[$idx]}"
+  if [ -n "$kubeconfig" ]; then
+    export KUBECONFIG="$kubeconfig"
+  fi
+  kubectl config use-context "$cluster_name" 2>/dev/null || true
+  echo "Switched to cluster: $cluster_name (KUBECONFIG=$KUBECONFIG)"
+}
+
+# ==================== Multicluster: Install Helpers ====================
+
+function download_execute_converter_for_role() {
+  local role="$1"
+  case "$role" in
+    primary) IOP_FILE="${WORKDIR}/iop.yaml" ;;
+    remote)  IOP_FILE="${WORKDIR}/remote.yaml" ;;
+    config)  IOP_FILE="${WORKDIR}/config.yaml" ;;
+  esac
+  SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
+  download_execute_converter
+}
+
+function set_cluster_identity() {
+  local idx="$1"
+  local cluster_name="${ALL_CLUSTER_NAMES[$idx]}"
+  local network="${ALL_CLUSTER_NETWORKS[$idx]}"
+  yq eval ".spec.values.global.multiCluster.clusterName = \"$cluster_name\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+  yq eval ".spec.values.global.network = \"$network\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+  yq eval ".spec.values.global.meshID = \"mesh1\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+  echo "Set cluster identity: clusterName=$cluster_name, network=$network"
+}
+
+function wait_for_injection_webhook() {
+  local attempts=0
+  local max_attempts=30
+  echo "Waiting for sidecar injection webhook to be ready..."
+  while [ $attempts -lt $max_attempts ]; do
+    local ca_bundle
+    ca_bundle=$(kubectl get mutatingwebhookconfiguration istio-sidecar-injector \
+      -o jsonpath='{.webhooks[0].clientConfig.caBundle}' 2>/dev/null || true)
+    if [ -n "$ca_bundle" ]; then
+      echo "Sidecar injection webhook is ready."
+      return
+    fi
+    echo "Waiting for injection webhook caBundle... (attempt $((attempts+1))/$max_attempts)"
+    sleep 10
+    attempts=$((attempts+1))
+  done
+  echo "Warning: Sidecar injection webhook not ready after $max_attempts attempts"
+}
+
+function install_eastwest_gateway() {
+  local network="$1"
+  echo "Installing east-west gateway for network $network..."
+  local tmp_manifest="${WORKDIR}/istio-eastwestgateway.yaml"
+
+  if [ "$AMBIENT" == "true" ]; then
+    cp "$EASTWEST_GATEWAY_AMBIENT_MANIFEST" "$tmp_manifest"
+    yq -i ".metadata.namespace = \"$NAMESPACE\"" "$tmp_manifest"
+    yq -i ".metadata.labels[\"topology.istio.io/network\"] = \"$network\"" "$tmp_manifest"
+    oc apply -f "$tmp_manifest"
+    echo "Ambient east-west gateway created for network $network."
+  else
+    helm template -n "$NAMESPACE" istio-eastwestgateway "${ROOT}"/manifests/charts/gateway \
+      --values "$EASTWEST_GATEWAY_VALUES" \
+      --set networkGateway="$network" > "$tmp_manifest"
+    oc apply -f "$tmp_manifest"
+    oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-eastwestgateway --timeout=120s
+    echo "East-west gateway created for network $network."
+  fi
+}
+
+function expose_istiod() {
+  echo "Exposing istiod via east-west gateway..."
+  oc apply -n "$NAMESPACE" -f "${ROOT}/samples/multicluster/expose-istiod.yaml"
+  echo "istiod exposed via east-west gateway."
+}
+
+function get_eastwest_gateway_address() {
+  local attempts=0
+  local max_attempts=30
+  local addr=""
+  while [ $attempts -lt $max_attempts ]; do
+    addr=$(kubectl -n "$NAMESPACE" get svc istio-eastwestgateway \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+    if [ -n "$addr" ]; then
+      echo "$addr"
+      return
+    fi
+    echo "Waiting for east-west gateway external IP... (attempt $((attempts+1))/$max_attempts)"
+    sleep 10
+    attempts=$((attempts+1))
+  done
+  echo "Error: Failed to get east-west gateway external IP after $max_attempts attempts" >&2
+  exit 1
+}
+
+# ==================== Multicluster: Orchestration ====================
+
+function install_multicluster() {
+  load_topology
+
+  # Phase 1: Config-remote clusters (CRDs/RBAC, no remotePilotAddress yet)
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    if is_remote "$idx" && is_config "$idx"; then
+      echo "=== Phase 1: Installing config-remote cluster ${ALL_CLUSTER_NAMES[$idx]} ==="
+      switch_cluster "$idx"
+      download_execute_converter_for_role "config"
+      set_cluster_identity "$idx"
+      install_istio_cni
+      if [ "$AMBIENT" == "true" ]; then
+        install_ztunnel "$idx"
+      fi
+      install_istio
+    fi
+  done
+
+  # Phase 2: Primary clusters (istiod + all gateways including east-west)
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    if is_primary "$idx"; then
+      echo "=== Phase 2: Installing primary cluster ${ALL_CLUSTER_NAMES[$idx]} ==="
+      switch_cluster "$idx"
+      download_execute_converter_for_role "primary"
+      set_cluster_identity "$idx"
+      install_istio_cni
+      if [ "$AMBIENT" == "true" ]; then
+        install_ztunnel "$idx"
+      fi
+      install_istio
+      if [ "$AMBIENT" != "true" ]; then
+        wait_for_injection_webhook
+      fi
+      install_gateways
+      install_eastwest_gateway "${ALL_CLUSTER_NETWORKS[$idx]}"
+      if [ "$AMBIENT" != "true" ]; then
+        expose_istiod
+      fi
+    fi
+  done
+
+  # Phase 3: Remote clusters (with remotePilotAddress from primary's EW gateway)
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    if is_remote "$idx" && ! is_config "$idx"; then
+      echo "=== Phase 3: Installing remote cluster ${ALL_CLUSTER_NAMES[$idx]} ==="
+
+      # Get remotePilotAddress from primary's east-west gateway
+      local primary_idx
+      primary_idx=$(get_primary_index "$idx")
+      switch_cluster "$primary_idx"
+      local pilot_addr
+      pilot_addr=$(get_eastwest_gateway_address)
+      local cluster_name="${ALL_CLUSTER_NAMES[$idx]}"
+      local network="${ALL_CLUSTER_NETWORKS[$idx]}"
+
+      switch_cluster "$idx"
+      download_execute_converter_for_role "remote"
+      yq eval '.spec.profile = "remote"' -i "$WORKDIR/$SAIL_IOP_FILE"
+      set_cluster_identity "$idx"
+      yq eval ".spec.values.global.remotePilotAddress = \"$pilot_addr\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+      echo "Set remotePilotAddress=$pilot_addr for remote cluster ${ALL_CLUSTER_NAMES[$idx]}"
+      yq eval ".spec.values.istiodRemote.injectionPath = \"/inject/cluster/$cluster_name/net/$network\"" -i "$WORKDIR/$SAIL_IOP_FILE"
+
+      install_istio_cni
+      if [ "$AMBIENT" == "true" ]; then
+        install_ztunnel "$idx"
+      fi
+      install_istio
+      if [ "$AMBIENT" != "true" ]; then
+        wait_for_injection_webhook
+      fi
+      install_gateways
+      install_eastwest_gateway "${ALL_CLUSTER_NETWORKS[$idx]}"
+    fi
+  done
+
+  # Phase 4: Update config-remote clusters with remotePilotAddress
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    if is_remote "$idx" && is_config "$idx"; then
+      echo "=== Phase 4: Updating config-remote cluster ${ALL_CLUSTER_NAMES[$idx]} with remotePilotAddress ==="
+
+      local primary_idx
+      primary_idx=$(get_primary_index "$idx")
+      switch_cluster "$primary_idx"
+      local pilot_addr
+      pilot_addr=$(get_eastwest_gateway_address)
+
+      switch_cluster "$idx"
+      kubectl patch istio default -n "$NAMESPACE" --type merge \
+        -p "{\"spec\":{\"values\":{\"global\":{\"remotePilotAddress\":\"$pilot_addr\"}}}}"
+      echo "Patched remotePilotAddress=$pilot_addr for config-remote cluster ${ALL_CLUSTER_NAMES[$idx]}"
+      oc -n "$NAMESPACE" wait --for=condition=Available deployment/istiod --timeout=240s || { sleep 60; }
+    fi
+  done
+}
+
+function cleanup_multicluster() {
+  load_topology
+  for idx in "${!ALL_CLUSTER_NAMES[@]}"; do
+    echo "Cleaning up cluster ${ALL_CLUSTER_NAMES[$idx]}..."
+    switch_cluster "$idx"
+    cleanup_istio
+  done
+}
+
+# ==================== Entry Point ====================
+
+if [ "$1" = "install" ]; then
+  if [ "${TOPOLOGY:-SINGLE_CLUSTER}" != "SINGLE_CLUSTER" ]; then
+    install_multicluster || { echo "Failed multicluster install"; exit 1; }
+  else
+    download_execute_converter || { echo "Failed to execute converter"; exit 1; }
+    install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
+    if [ "$AMBIENT" == "true" ]; then
+      install_ztunnel || { echo "Failed to install ZTunnel"; exit 1; }
+    fi
+    install_istio || { echo "Failed to install Istio"; exit 1; }
+    install_gateways || { echo "Failed to install gateways"; exit 1; }
+  fi
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
     echo "Skipping cleanup because SKIP_CLEANUP is set to true."
+  elif [ "${TOPOLOGY:-SINGLE_CLUSTER}" != "SINGLE_CLUSTER" ]; then
+    cleanup_multicluster || { echo "Failed multicluster cleanup"; exit 1; }
   else
     cleanup_istio || { echo "Failed to cleanup cluster"; exit 1; }
   fi
 fi
-

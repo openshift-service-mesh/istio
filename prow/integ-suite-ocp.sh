@@ -23,14 +23,27 @@
 #   SKIP_TESTS: The tests to skip. Default is "".                          e.g. "TestAuthZCheck|TestRevisionTags"
 #   SKIP_SUITE: The test suites under main suite to skip. Default is "".   e.g. "tracing/zipkin|policy"
 #   SPECIFIC_TESTS: The specific tests ONLY to run. Default is "".         e.g. "TestAccessLogs|TestAccessLogsFilter"
+#   TOPOLOGY: Cluster topology mode. Default is "SINGLE_CLUSTER". Options: "SINGLE_CLUSTER", "MULTICLUSTER", "AMBIENT_MULTICLUSTER"
+#   CLUSTER_TOPOLOGY_CONFIG: Path to topology JSON file. Default varies by TOPOLOGY setting.
 #
-# Examples:
+# Single-cluster examples:
 #   ./integ-suite-ocp.sh telemetry                                                            # Run all telemetry tests
 #   ./integ-suite-ocp.sh telemetry "" "" "TestAccessLogs|TestAccessLogsFilter"                # Run only specific tests
 #   ./integ-suite-ocp.sh telemetry "" "tracing/zipkin" "TestAccessLogs|TestAccessLogsFilter"  # Run specific tests but skip if in tracing/zipkin suite
 #   SPECIFIC_TESTS="TestAccessLogs|TestAccessLogsFilter" ./integ-suite-ocp.sh telemetry       # Same as above, using env var
 #   SKIP_TESTS="TestAuthZCheck|TestRevisionTags" ./integ-suite-ocp.sh pilot                   # Skip specific tests
 #   SKIP_SUITE="tracing/zipkin|policy" ./integ-suite-ocp.sh telemetry                         # Skip specific suites
+#
+# Multicluster examples (requires KUBECONFIG with multiple cluster contexts):
+#   export KUBECONFIG=/path/to/primary.kubeconfig:/path/to/remote.kubeconfig
+#   TOPOLOGY=MULTICLUSTER ./integ-suite-ocp.sh pilot                                          # Run pilot tests across multiple clusters
+#   TOPOLOGY=AMBIENT_MULTICLUSTER ./integ-suite-ocp.sh ambient                                # Run ambient multicluster tests
+#   TOPOLOGY=MULTICLUSTER CLUSTER_TOPOLOGY_CONFIG=prow/config/topology/ocp/custom.json ./integ-suite-ocp.sh pilot  # Use custom topology
+#   TOPOLOGY=MULTICLUSTER ./integ-suite-ocp.sh security                                       # Run security tests in multicluster mode
+#
+# Note: If using default topology files and fewer clusters are available than defined in the topology,
+#       a dynamic topology will be auto-generated to match the available clusters.
+#       Example: 2 clusters available, but multicluster.json defines 3 → auto-generates 2-cluster topology
 #
 # TODO: Use the same arguments as integ-suite.kind.sh uses
 
@@ -49,11 +62,13 @@ OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-"sail-operator"}"
 CONTROL_PLANE_SOURCE="${CONTROL_PLANE_SOURCE:-"istio"}"
 INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
-AMBIENT="${AMBIENT:="false"}"
+export AMBIENT="${AMBIENT:="false"}"
 FIPS="${FIPS:="false"}"
 TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/istio-images"}"
 DEPLOY_GATEWAY_API="false"
 IBM="${IBM:-"false"}"
+export TOPOLOGY="${TOPOLOGY:-"SINGLE_CLUSTER"}"
+CLUSTER_TOPOLOGY_CONFIG="${CLUSTER_TOPOLOGY_CONFIG:-""}"
 
 # Important: SKIP_TEST_RUN is a workaround until downstream tests can be executed by using this script. 
 # To execute the tests in downstream, set SKIP_TEST_RUN to true
@@ -76,7 +91,9 @@ source "${ROOT}/prow/check-cluster-ready.sh"
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
-build_images() {
+# Override build_images() from lib.sh with OCP-specific version
+# This must be defined AFTER sourcing to override the lib.sh version
+function build_images() {
     # Build just the images needed for tests
     targets="docker.pilot docker.proxyv2 docker.install-cni "
 
@@ -97,6 +114,36 @@ build_images() {
         echo "Building default images"
         DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="${VARIANT}" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
     fi
+
+    # Push to all additional cluster registries
+    if [[ -n "${CLUSTER_REGISTRY_URLS:-}" ]] && [[ ${#CLUSTER_REGISTRY_URLS[@]} -gt 1 ]]; then
+        echo ""
+        echo "=== Pushing images to additional clusters ==="
+
+        # List of image names that were built
+        local images=("pilot" "proxyv2" "install-cni" "app" "app_sidecar_ubuntu_noble" "ext-authz" "ztunnel")
+
+        # Skip first registry (already pushed during build)
+        for i in $(seq 1 $((${#CLUSTER_REGISTRY_URLS[@]} - 1))); do
+            local target_registry="${CLUSTER_REGISTRY_URLS[i]}"
+            echo ""
+            echo "Pushing to cluster $((i+1)): ${target_registry}"
+
+            for image in "${images[@]}"; do
+                local source_image="${HUB}/${image}:${TAG}"
+                local target_image="${target_registry}/${image}:${TAG}"
+
+                echo "  Copying ${image} to cluster $((i+1))..."
+                # Use oc image mirror which handles authentication and TLS automatically
+                if ! oc image mirror "${source_image}" "${target_image}" --keep-manifest-list --insecure=true 2>&1; then
+                    echo "  Warning: Failed to mirror ${image} to ${target_registry}"
+                fi
+            done
+        done
+
+        echo ""
+        echo "=== Image push completed for all ${#CLUSTER_REGISTRY_URLS[@]} clusters ==="
+    fi
 }
 
 # Define the artifacts directory
@@ -105,6 +152,69 @@ JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
 # Create the junit output directory unconditionally so it is available even when
 # SKIP_SETUP=true (images pre-built by the servicemesh-istio-images-build CI step).
 mkdir -p "${JUNIT_REPORT_DIR}"
+
+# Ensure artifacts directory exists
+mkdir -p "${JUNIT_REPORT_DIR}"
+
+# Set OCP-specific topology configuration file paths
+if [[ "${TOPOLOGY}" == "MULTICLUSTER" ]] && [[ -z "${CLUSTER_TOPOLOGY_CONFIG}" ]]; then
+  CLUSTER_TOPOLOGY_CONFIG="prow/config/topology/ocp/multicluster.json"
+elif [[ "${TOPOLOGY}" == "AMBIENT_MULTICLUSTER" ]] && [[ -z "${CLUSTER_TOPOLOGY_CONFIG}" ]]; then
+  CLUSTER_TOPOLOGY_CONFIG="prow/config/topology/ocp/ambient-multicluster.json"
+fi
+
+CLUSTER_TOPOLOGY_CONFIG_FILE="${ROOT}/${CLUSTER_TOPOLOGY_CONFIG}"
+
+# Handle multicluster setup
+if [[ "${TOPOLOGY}" != "SINGLE_CLUSTER" ]]; then
+  echo "Setting up multicluster topology: ${TOPOLOGY}"
+
+  # Normalize kubeconfig contexts FIRST to handle duplicate context names
+  # This must be done before counting contexts or loading topology
+  if [[ -n "${KUBECONFIG:-}" ]]; then
+    # Create temporary minimal topology just to get cluster names for normalization
+    if [[ -f "${CLUSTER_TOPOLOGY_CONFIG_FILE}" ]]; then
+      echo "Pre-normalizing kubeconfig contexts..."
+      # Extract cluster names from topology
+      mapfile -t TEMP_CLUSTER_NAMES < <(jq -r '.[] | .clusterName' "${CLUSTER_TOPOLOGY_CONFIG_FILE}")
+      export CLUSTER_NAMES=("${TEMP_CLUSTER_NAMES[@]}")
+
+      # Normalize contexts to match cluster names from topology
+      normalize_kubeconfig_contexts
+    fi
+  fi
+
+  # Generate dynamic topology if the default file requires more clusters than available
+  # Only auto-generate for default topology files (not custom user-specified files)
+  if [[ "${CLUSTER_TOPOLOGY_CONFIG}" == "prow/config/topology/ocp/multicluster.json" ]] || [[ "${CLUSTER_TOPOLOGY_CONFIG}" == "prow/config/topology/ocp/ambient-multicluster.json" ]]; then
+    # NOW get available contexts (after normalization - all contexts have unique names)
+    mapfile -t AVAILABLE_CONTEXTS < <(kubectl config get-contexts -o name 2>/dev/null || true)
+    NUM_AVAILABLE_CLUSTERS=${#AVAILABLE_CONTEXTS[@]}
+
+    echo "Number of available contexts: ${NUM_AVAILABLE_CLUSTERS}"
+
+    # Check if we need to generate a dynamic topology
+    if [[ -f "${CLUSTER_TOPOLOGY_CONFIG_FILE}" ]]; then
+      TOPOLOGY_CLUSTER_COUNT=$(jq '. | length' "${CLUSTER_TOPOLOGY_CONFIG_FILE}")
+
+      if [[ ${NUM_AVAILABLE_CLUSTERS} -lt ${TOPOLOGY_CLUSTER_COUNT} ]]; then
+        echo "Warning: Default topology requires ${TOPOLOGY_CLUSTER_COUNT} clusters, but only ${NUM_AVAILABLE_CLUSTERS} available in KUBECONFIG"
+        echo "Generating dynamic topology based on available clusters..."
+        generate_dynamic_topology "${NUM_AVAILABLE_CLUSTERS}" "${TOPOLOGY}"
+        CLUSTER_TOPOLOGY_CONFIG_FILE="${ARTIFACTS_DIR}/dynamic-topology.json"
+      fi
+    fi
+  fi
+
+  # Load and validate topology (normalization already done above)
+  load_cluster_topology "${CLUSTER_TOPOLOGY_CONFIG_FILE}"
+  validate_ocp_multicluster_kubeconfigs
+
+  # Setup runtime topology configuration
+  setup_ocp_multicluster_topology "${CLUSTER_TOPOLOGY_CONFIG_FILE}"
+  export INTEGRATION_TEST_TOPOLOGY_FILE="${ARTIFACTS_DIR}/topology-config.json"
+  export INTEGRATION_TEST_KUBECONFIG=NONE
+fi
 
 # Install MetalLB if the flag is set
 if [ "${INSTALL_METALLB}" == "true" ]; then
@@ -208,6 +318,11 @@ base_cmd=(
 # disable PILOT_ENABLE_ALPHA_GATEWAY_API env here https://github.com/istio/istio/blob/master/tests/integration/base.yaml#L23 since there is no way how to enable experimental gw api crds on OpenShift
 helm_values="global.platform=openshift,pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=false"
 
+# Add topology configuration for multicluster tests
+if [[ "${TOPOLOGY}" != "SINGLE_CLUSTER" ]]; then
+  base_cmd+=("--istio.test.kube.topology=${INTEGRATION_TEST_TOPOLOGY_FILE}")
+fi
+
 # IBM specific modifications
 if [ "${IBM}" == "true" ]; then
     base_cmd+=("--istio.test.skipTProxy=true")
@@ -231,14 +346,32 @@ if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
     base_cmd+=("--istio.test.kube.ztunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}")
 
-    # Set local gateway mode for Ambient execution
-    oc patch networks.operator.openshift.io cluster --type=merge \
-        -p '{"spec":{"defaultNetwork":{"ovnKubernetesConfig":{"gatewayConfig":{"routingViaHost": true}}}}}'
-    routing_via_host=$(oc get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.gatewayConfig.routingViaHost}')
-    if [ "${routing_via_host}" != "true" ]; then
-        echo "Unable to set local gateway mode for Ambient execution"
-        exit 1
+    # Add multinetwork flag for ambient multicluster tests
+    if [[ "${TOPOLOGY}" == "AMBIENT_MULTICLUSTER" ]]; then
+        base_cmd+=("--istio.test.ambient.multinetwork")
     fi
+
+    # Set local gateway mode for Ambient execution on all clusters
+    gw_contexts=("")
+    if [[ "${TOPOLOGY}" != "SINGLE_CLUSTER" ]] && [[ ${#cluster_contexts[@]} -gt 0 ]]; then
+        gw_contexts=("${cluster_contexts[@]}")
+    fi
+    for ctx in "${gw_contexts[@]}"; do
+        ctx_args=()
+        ctx_display="current context"
+        if [[ -n "${ctx}" ]]; then
+            ctx_args=("--context=${ctx}")
+            ctx_display="${ctx}"
+        fi
+        echo "Setting local gateway mode on ${ctx_display}"
+        oc "${ctx_args[@]}" patch networks.operator.openshift.io cluster --type=merge \
+            -p '{"spec":{"defaultNetwork":{"ovnKubernetesConfig":{"gatewayConfig":{"routingViaHost": true}}}}}'
+        routing_via_host=$(oc "${ctx_args[@]}" get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.gatewayConfig.routingViaHost}')
+        if [ "${routing_via_host}" != "true" ]; then
+            echo "Unable to set local gateway mode for Ambient execution on ${ctx_display}"
+            exit 1
+        fi
+    done
 fi
 
 base_cmd+=("--istio.test.kube.helm.values=${helm_values}")
