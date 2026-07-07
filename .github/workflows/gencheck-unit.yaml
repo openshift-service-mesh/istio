@@ -5,10 +5,6 @@ on:
     branches:
       - master
       - release-*
-  push:
-    branches:
-      - master
-      - release-*
 
 # Cancel in-flight runs for the same PR or branch.
 concurrency:
@@ -30,16 +26,6 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      # Install the exact Go version declared in go.mod so we run directly on the
-      # runner VM (BUILD_WITH_CONTAINER=0) instead of Docker-in-Docker.
-      # Running natively gives tests full kernel access: user namespaces, iptables,
-      # ip6tables, and nftables all work without privilege escalation tricks.
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: Install go-junit-report
-        run: go install github.com/jstemmer/go-junit-report/v2@latest
       # Ubuntu 24.04 (ubuntu-latest) enables an AppArmor policy that blocks
       # unprivileged user-namespace creation by default. The iptables/nftables
       # tests use github.com/howardjohn/unshare-go whose init() calls
@@ -76,4 +62,4 @@ jobs:
             echo "nft backend will be selected; skipping ForceApply subtest via GOFLAGS"
             echo "GOFLAGS=-skip=TestIdempotentEquivalentRerun/ipv6-empty-inbound-ports" >> "$GITHUB_ENV"
           fi
-      - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
+      - run: make -e "T=-v -count=1" build racetest binaries-test
