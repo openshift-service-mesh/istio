@@ -47,10 +47,21 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.preflight.outputs.image }}
+      # --privileged is required because gen-check runs golden-file refresh
+      # for cni/pkg/iptables, whose test binary calls unshare(CLONE_NEWUSER|CLONE_NEWNET)
+      # at init() via github.com/howardjohn/unshare-go. Without this the binary
+      # panics before any test runs and the golden update fails.
+      options: --privileged
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Prepare kernel environment
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null \
+            || sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null \
+            || sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
       - run: make BUILD_WITH_CONTAINER=0 gen-check
 
   unit:
@@ -69,42 +80,25 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # --privileged already bypasses AppArmor for this container's processes,
-      # but writing the host sysctl ensures any sub-processes that escape the
-      # container's cgroup are also unconstrained.  We try the command directly
-      # first (the container may run as root) and fall back to sudo; || true
-      # keeps the step non-fatal since --privileged is the primary mitigation.
-      - name: Enable unprivileged user namespaces
+      # Prepare the kernel environment for iptables/nftables tests:
+      #   - trust the workspace (git dubious-ownership guard)
+      #   - enable unprivileged user namespaces (needed by unshare-go)
+      #   - load legacy iptables modules and probe which backend will be selected
+      #     so we can skip the one subtest whose behaviour differs between backends
+      - name: Prepare kernel environment
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null \
             || sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null \
             || sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
-
-      # Ubuntu 24.04 defaults to nftables.  The legacy iptables kernel modules
-      # register default chains in every new network namespace; without them
-      # ip6tables-legacy-save in a fresh netns outputs < 3 lines and
-      # DetectIptablesVersion falls through to the nft backend.
-      #
-      # We attempt to load the modules (direct first, then sudo as fallback),
-      # then probe a fresh netns to see which backend will actually be selected.
-      # If legacy is not functional we skip the one subtest whose expected
-      # behavior differs between backends (nft is idempotent for -N on existing
-      # chains; legacy is not).
-      - name: Load legacy iptables kernel modules
-        run: |
           for mod in ip_tables ip6_tables iptable_filter ip6table_filter iptable_nat ip6table_nat; do
             modprobe "$mod" 2>/dev/null \
               || sudo modprobe "$mod" 2>/dev/null \
               && echo "Loaded: $mod" \
               || echo "Cannot load (built-in or N/A): $mod"
           done
-          echo "=== lsmod ==="
           lsmod | grep -E "ip.?tables" || echo "(no legacy modules in lsmod — may be built-in)"
-          # Probe a fresh network namespace — same context the test binary uses.
-          # No sudo needed: --privileged gives the container full CAP_NET_ADMIN.
           LINES=$(unshare -n ip6tables-legacy-save 2>/dev/null | wc -l)
           echo "ip6tables-legacy-save in fresh netns: ${LINES} lines"
           if [ "${LINES}" -ge 3 ]; then
@@ -113,5 +107,4 @@ jobs:
             echo "nft backend will be selected; skipping ForceApply subtest via GOFLAGS"
             echo "GOFLAGS=-skip=TestIdempotentEquivalentRerun/ipv6-empty-inbound-ports" >> "$GITHUB_ENV"
           fi
-
       - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
