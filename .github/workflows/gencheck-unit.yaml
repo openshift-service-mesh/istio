@@ -12,54 +12,104 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Read IMAGE_VERSION from the BASE branch so a PR cannot substitute a
+  # malicious container image by editing common/scripts/setup_env.sh.
+  # Sparse-checkout fetches only the one file we need, keeping this fast.
+  # After this job both downstream jobs start in parallel.
+  preflight:
+    name: Resolve Build Image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.get-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          sparse-checkout: |
+            common/scripts/setup_env.sh
+          sparse-checkout-cone-mode: false
+      - name: Extract IMAGE_VERSION from base branch
+        id: get-image
+        run: |
+          version=$(grep -E '^\s+IMAGE_VERSION=' common/scripts/setup_env.sh \
+                    | head -1 | sed 's/.*IMAGE_VERSION=//')
+          if [[ -z "${version}" ]]; then
+            echo "::error::Could not extract IMAGE_VERSION from common/scripts/setup_env.sh"
+            exit 1
+          fi
+          image="registry.istio.io/testing/build-tools:${version}"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "Resolved build image: ${image}"
+
   gencheck:
     name: Gen Check
+    needs: preflight
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.preflight.outputs.image }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - run: make gen-check
+      - run: make BUILD_WITH_CONTAINER=0 gen-check
 
   unit:
     name: Unit Tests
+    needs: preflight
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.preflight.outputs.image }}
+      # --privileged is required for two reasons:
+      #   1. github.com/howardjohn/unshare-go calls unshare(CLONE_NEWUSER|CLONE_NEWNET)
+      #      in its init(); --privileged bypasses the AppArmor restriction that would
+      #      otherwise block this on Ubuntu 24.04 runners.
+      #   2. We load legacy iptables kernel modules via modprobe, which requires
+      #      CAP_SYS_MODULE on the host kernel.
+      options: --privileged
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      # Ubuntu 24.04 (ubuntu-latest) enables an AppArmor policy that blocks
-      # unprivileged user-namespace creation by default. The iptables/nftables
-      # tests use github.com/howardjohn/unshare-go whose init() calls
-      # unshare(CLONE_NEWUSER|CLONE_NEWNET) — without this sysctl the binary
-      # crashes before running a single test.  The second sysctl is a no-op on
-      # 24.04 but needed on some 22.04 kernels; || true keeps it non-fatal.
+
+      # --privileged already bypasses AppArmor for this container's processes,
+      # but writing the host sysctl ensures any sub-processes that escape the
+      # container's cgroup are also unconstrained.  We try the command directly
+      # first (the container may run as root) and fall back to sudo; || true
+      # keeps the step non-fatal since --privileged is the primary mitigation.
       - name: Enable unprivileged user namespaces
         run: |
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
-      # Ubuntu 24.04 (ubuntu-latest) defaults to nftables.  The legacy iptables
-      # kernel modules (ip6table_filter, etc.) register a hook that populates
-      # default chains in every new network namespace — without them,
+          sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null \
+            || sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null \
+            || sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+
+      # Ubuntu 24.04 defaults to nftables.  The legacy iptables kernel modules
+      # register default chains in every new network namespace; without them
       # ip6tables-legacy-save in a fresh netns outputs < 3 lines and
-      # DetectIptablesVersion falls through to iptables-nft.
+      # DetectIptablesVersion falls through to the nft backend.
       #
-      # We try to load the modules, then probe a fresh netns directly.
-      # If legacy doesn't work there we skip the one subtest that relies on
-      # legacy's non-idempotent chain-creation behavior (the nft backend is
-      # intentionally idempotent for -N on existing chains).
+      # We attempt to load the modules (direct first, then sudo as fallback),
+      # then probe a fresh netns to see which backend will actually be selected.
+      # If legacy is not functional we skip the one subtest whose expected
+      # behavior differs between backends (nft is idempotent for -N on existing
+      # chains; legacy is not).
       - name: Load legacy iptables kernel modules
         run: |
           for mod in ip_tables ip6_tables iptable_filter ip6table_filter iptable_nat ip6table_nat; do
-            sudo modprobe "$mod" 2>/dev/null && echo "Loaded: $mod" || echo "Cannot load (built-in or N/A): $mod"
+            modprobe "$mod" 2>/dev/null \
+              || sudo modprobe "$mod" 2>/dev/null \
+              && echo "Loaded: $mod" \
+              || echo "Cannot load (built-in or N/A): $mod"
           done
           echo "=== lsmod ==="
           lsmod | grep -E "ip.?tables" || echo "(no legacy modules in lsmod — may be built-in)"
           # Probe a fresh network namespace — same context the test binary uses.
-          LINES=$(sudo unshare -n ip6tables-legacy-save 2>/dev/null | wc -l)
+          # No sudo needed: --privileged gives the container full CAP_NET_ADMIN.
+          LINES=$(unshare -n ip6tables-legacy-save 2>/dev/null | wc -l)
           echo "ip6tables-legacy-save in fresh netns: ${LINES} lines"
-          if [ "$LINES" -ge 3 ]; then
+          if [ "${LINES}" -ge 3 ]; then
             echo "Legacy backend will be selected in tests — no skip needed"
           else
             echo "nft backend will be selected; skipping ForceApply subtest via GOFLAGS"
             echo "GOFLAGS=-skip=TestIdempotentEquivalentRerun/ipv6-empty-inbound-ports" >> "$GITHUB_ENV"
           fi
-      - run: make -e "T=-v -count=1" build racetest binaries-test
+
+      - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
