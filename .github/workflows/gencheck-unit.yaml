@@ -50,6 +50,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: make BUILD_WITH_CONTAINER=0 gen-check
 
   unit:
@@ -68,6 +69,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       # --privileged already bypasses AppArmor for this container's processes,
       # but writing the host sysctl ensures any sub-processes that escape the
