@@ -1,0 +1,63 @@
+name: Gen Check
+
+on:
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Read IMAGE_VERSION from the BASE branch so a PR cannot substitute a
+  # malicious container image by editing common/scripts/setup_env.sh.
+  # Sparse-checkout fetches only the one file we need, keeping this fast.
+  preflight:
+    name: Resolve Build Image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.get-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          sparse-checkout: |
+            common/scripts/setup_env.sh
+          sparse-checkout-cone-mode: false
+      - name: Extract IMAGE_VERSION from base branch
+        id: get-image
+        run: |
+          version=$(grep -E '^\s+IMAGE_VERSION=' common/scripts/setup_env.sh \
+                    | head -1 | sed 's/.*IMAGE_VERSION=//')
+          if [[ -z "${version}" ]]; then
+            echo "::error::Could not extract IMAGE_VERSION from common/scripts/setup_env.sh"
+            exit 1
+          fi
+          image="registry.istio.io/testing/build-tools:${version}"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "Resolved build image: ${image}"
+
+  gencheck:
+    name: Gen Check
+    needs: preflight
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.preflight.outputs.image }}
+      # --privileged is required because gen-check runs golden-file refresh
+      # for cni/pkg/iptables, whose test binary calls unshare(CLONE_NEWUSER|CLONE_NEWNET)
+      # at init() via github.com/howardjohn/unshare-go. Without this the binary
+      # panics before any test runs and the golden update fails.
+      options: --privileged
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare kernel environment
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null \
+            || sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null \
+            || sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+      - run: make BUILD_WITH_CONTAINER=0 gen-check
