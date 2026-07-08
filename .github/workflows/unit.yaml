@@ -1,4 +1,4 @@
-name: Gencheck and Unit Tests
+name: Unit Tests
 
 on:
   pull_request:
@@ -6,7 +6,6 @@ on:
       - master
       - release-*
 
-# Cancel in-flight runs for the same PR or branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -15,7 +14,6 @@ jobs:
   # Read IMAGE_VERSION from the BASE branch so a PR cannot substitute a
   # malicious container image by editing common/scripts/setup_env.sh.
   # Sparse-checkout fetches only the one file we need, keeping this fast.
-  # After this job both downstream jobs start in parallel.
   preflight:
     name: Resolve Build Image
     runs-on: ubuntu-latest
@@ -41,29 +39,6 @@ jobs:
           echo "image=${image}" >> "$GITHUB_OUTPUT"
           echo "Resolved build image: ${image}"
 
-  gencheck:
-    name: Gen Check
-    needs: preflight
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.preflight.outputs.image }}
-      # --privileged is required because gen-check runs golden-file refresh
-      # for cni/pkg/iptables, whose test binary calls unshare(CLONE_NEWUSER|CLONE_NEWNET)
-      # at init() via github.com/howardjohn/unshare-go. Without this the binary
-      # panics before any test runs and the golden update fails.
-      options: --privileged
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - name: Prepare kernel environment
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null \
-            || sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null \
-            || sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
-      - run: make BUILD_WITH_CONTAINER=0 gen-check
-
   unit:
     name: Unit Tests
     needs: preflight
@@ -74,17 +49,16 @@ jobs:
       #   1. github.com/howardjohn/unshare-go calls unshare(CLONE_NEWUSER|CLONE_NEWNET)
       #      in its init(); --privileged bypasses the AppArmor restriction that would
       #      otherwise block this on Ubuntu 24.04 runners.
-      #   2. We load legacy iptables kernel modules via modprobe, which requires
-      #      CAP_SYS_MODULE on the host kernel.
+      #   2. The iptables backend probe uses unshare -n, which requires CAP_NET_ADMIN.
       options: --privileged
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       # Prepare the kernel environment for iptables/nftables tests:
       #   - trust the workspace (git dubious-ownership guard)
-      #   - enable unprivileged user namespaces (needed by unshare-go)
-      #   - load legacy iptables modules and probe which backend will be selected
-      #     so we can skip the one subtest whose behaviour differs between backends
+      #   - enable unprivileged user namespaces (belt-and-suspenders with --privileged)
+      #   - probe which iptables backend will be selected so we can skip the one
+      #     subtest whose behaviour differs between the legacy and nft backends
       - name: Prepare kernel environment
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -92,19 +66,11 @@ jobs:
             || sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sysctl -w kernel.unprivileged_userns_clone=1 2>/dev/null \
             || sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
-          for mod in ip_tables ip6_tables iptable_filter ip6table_filter iptable_nat ip6table_nat; do
-            modprobe "$mod" 2>/dev/null \
-              || sudo modprobe "$mod" 2>/dev/null \
-              && echo "Loaded: $mod" \
-              || echo "Cannot load (built-in or N/A): $mod"
-          done
-          lsmod | grep -E "ip.?tables" || echo "(no legacy modules in lsmod — may be built-in)"
           LINES=$(unshare -n ip6tables-legacy-save 2>/dev/null | wc -l)
-          echo "ip6tables-legacy-save in fresh netns: ${LINES} lines"
           if [ "${LINES}" -ge 3 ]; then
-            echo "Legacy backend will be selected in tests — no skip needed"
+            echo "Legacy iptables backend active — no test skip needed"
           else
-            echo "nft backend will be selected; skipping ForceApply subtest via GOFLAGS"
+            echo "nft backend active; skipping backend-specific subtest"
             echo "GOFLAGS=-skip=TestIdempotentEquivalentRerun/ipv6-empty-inbound-ports" >> "$GITHUB_ENV"
           fi
       - run: make -e "T=-v -count=1" BUILD_WITH_CONTAINER=0 build racetest binaries-test
