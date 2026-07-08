@@ -8,7 +8,7 @@ test_suites:
   pilot:
     skip_tests:
       - name: "TestGatewayConformance"
-        reason: ""
+        reason: "Needs to be patched to be able to execute. Patch is available on downstream."
         skip_in: ['midstream_sail','midstream_helm']
       - name: "TestGateway/managed-owner"
         reason: ""
@@ -146,9 +146,6 @@ test_suites:
       - name: "TestGatewayAPIRequestAuthentication"
         reason: "Gateway API ingress does not provide routable HTTP address on OCP"
         skip_in: ['midstream_sail','midstream_helm']
-      - name: "TestSidecarMutualTlsOrigination/valid_crl"
-        reason: "CRL revocation does not propagate to sidecar on OCP — cri-o ConfigMap volume update behavior prevents CRL from taking effect"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestNormalization"
         reason: ""
         skip_in: ['downstream','midstream_sail']
@@ -158,6 +155,15 @@ test_suites:
       - name: "TestMtlsGatewaysWithQUIC"
         reason: "QUIC protocol is not supported by OSSM yet. In midstream, AWS platform does not support QUIC, so the test skipped."
         skip_in: ['downstream']
+      - name: "TestAuthz_MultipleCustomProviders_NonOverlapping"
+        reason: "The tests modify its configuration during the execution, which is not supported right now by Sail Operator install flow. (#74327)"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestAuthz_MultipleCustomProviders_Overlapping"
+        reason: "The tests modify its configuration during the execution, which is not supported right now by Sail Operator install flow. (#74327)"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestSidecarMutualTlsOrigination/valid_crl"
+        reason: "CRL revocation does not propagate to sidecar on OCP — cri-o ConfigMap volume update behavior prevents CRL from taking effect"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites:
       - name: "external_ca"
         reason: ""
@@ -284,6 +290,9 @@ test_suites:
       - name: "TestCanaryUpgradeFromTwoMinorRelease"
         reason: ""
         skip_in: ['midstream_helm']
+      - name: "TestAmbientStableRevisionLabelsGatewayStatus"
+        reason: ""
+        skip_in: ['midstream_helm']
       - name: "TestStableRevisionLabelsUpgradeFromPreviousMinorRelease"
         reason: ""
         skip_in: ['midstream_helm']
@@ -296,9 +305,5 @@ test_suites:
       - name: "TestZtunnelFromPreviousMinorRelease"
         reason: ""
         skip_in: ['midstream_helm']
-      - name: "TestAmbientStableRevisionLabelsGatewayStatus"
-        reason: ""
-        skip_in: ['midstream_helm']
     skip_subsuites: []
     run_tests_only: []
-
