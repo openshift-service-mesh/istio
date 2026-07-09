@@ -735,6 +735,9 @@ func (i *istioImpl) CreateRemoteSecret(ctx resource.Context, c cluster.Cluster, 
 		"--namespace", i.cfg.SystemNamespace,
 		"--manifests", filepath.Join(testenv.IstioSrc, "manifests"),
 	}
+	if ctx.Settings().OpenShift {
+		istioctlCmd = append(istioctlCmd, "--create-service-account=false")
+	}
 	istioctlCmd = append(istioctlCmd, opts...)
 
 	scopes.Framework.Infof("Creating remote secret for cluster %s %v", c.Name(), istioctlCmd)
