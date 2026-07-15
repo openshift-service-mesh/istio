@@ -145,10 +145,10 @@ type Settings struct {
 	// Cluster is fips complient
 	Fips bool
 
-	// Meshless indicates tests are running against a cluster without Istio mesh capabilities.
+	// GatewayAPIOnly indicates tests are running against a cluster without Istio mesh capabilities.
 	// When true, echo apps will be deployed without the istio-proxy sidecar container overlay,
 	// as there is no injection webhook to transform the "image: auto" placeholder.
-	Meshless bool
+	GatewayAPIOnly bool
 
 	// Use ambient instead of sidecars
 	AmbientEverywhere bool
@@ -241,10 +241,7 @@ func (s *Settings) RunDir() string {
 	u := strings.Replace(s.RunID.String(), "-", "", -1)
 	t := strings.Replace(s.TestID, "_", "-", -1)
 	// We want at least 6 characters of uuid padding
-	padding := maxTestIDLength - len(t)
-	if padding < 0 {
-		padding = 0
-	}
+	padding := max(maxTestIDLength-len(t), 0)
 	n := fmt.Sprintf("%s-%s", t, u[0:padding])
 
 	return path.Join(s.BaseDir, n)
