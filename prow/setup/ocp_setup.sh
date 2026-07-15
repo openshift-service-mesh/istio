@@ -31,6 +31,7 @@ WD=$(dirname "$0")
 WD=$(cd "$WD"; pwd)
 TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
+export IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-"istio-images"}"
 SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
 IBM="${IBM:-"false"}"
 
@@ -52,13 +53,14 @@ function setup_internal_registry() {
 
   # Get the registry route
   URL=$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
-  # Hub will be equal to the route url/project-name(NameSpace) 
-  export HUB="${URL}/${NAMESPACE}"
+  # Hub will be equal to the route url/project-name(NameSpace)
+  export HUB="${URL}/${IMAGE_NAMESPACE}"
   echo "Internal registry URL: ${HUB}"
 
   # Create namespace from where the image are going to be pushed
   # This is needed because in the internal registry the images are stored in the namespace.
   # If the namespace already exist, it will not fail
+  oc create namespace "${IMAGE_NAMESPACE}" || true
   oc create namespace "${NAMESPACE}" || true
 
   deploy_rolebinding
@@ -86,7 +88,7 @@ items:
   kind: RoleBinding
   metadata:
     name: image-puller
-    namespace: '"$NAMESPACE"'
+    namespace: '"$IMAGE_NAMESPACE"'
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
@@ -102,7 +104,7 @@ items:
   kind: RoleBinding
   metadata:
     name: image-pusher
-    namespace: '"$NAMESPACE"'
+    namespace: '"$IMAGE_NAMESPACE"'
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
