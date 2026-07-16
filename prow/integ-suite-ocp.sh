@@ -70,38 +70,10 @@ set -u
 # Print commands
 set -x
 
-check_cluster_operators() {
-  # Check if jq is installed
-  if ! command -v jq &> /dev/null; then
-    echo "ERROR: jq is required for the cluster operator health check. Please install jq."
-    exit 1
-  fi
-
-  local timeout_seconds=600 # 10 minutes
-  echo "Validating OpenShift cluster operators are Available (not Degraded)..."
-  local end_time=$(( $(date +%s) + timeout_seconds ))
-
-  while [ "$(date +%s)" -lt $end_time ]; do
-    # ponytail: ignore Progressing=True when Available=True — OCP 4.22 kube-apiserver
-    # NodeInstallerProgressing routinely exceeds 10m and blocked integ-helm before tests ran.
-    # Upgrade path: restore Progressing check once CI clusters finish rolling faster, or
-    # re-land openshift-service-mesh/istio#831-style logging with a longer timeout.
-    local unstable_operators
-    unstable_operators=$(oc get clusteroperator -o json | jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Degraded" and .status == "True"))] | length')
-
-    if [[ $unstable_operators -eq 0 ]]; then
-      echo "All cluster operators are Available (not Degraded)."
-      return 0
-    fi
-
-    echo -n "."
-    sleep 15
-  done
-
-  echo "ERROR: Timeout reached. Not all cluster operators are Available."
-  oc get clusteroperator
-  exit 1
-}
+# ponytail: re-land #831 check with 45m timeout — OCP 4.22 kube-apiserver Progressing
+# exceeds 10m and kills oc exec websockets mid-test. Ceiling: CLUSTER_OPERATOR_TIMEOUT.
+# shellcheck source=prow/check-cluster-ready.sh
+source "${ROOT}/prow/check-cluster-ready.sh"
 
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
