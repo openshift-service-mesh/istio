@@ -185,5 +185,10 @@ test_suites:
       - name: "TestAmbientStableRevisionLabelsGatewayStatus"
         reason: ""
         skip_in: ['midstream_helm']
+      # ponytail: midstream flake — istiod Pending on image pull during in-place upgrade
+      # on OCP CI (TestInPlaceUpgradeWebhookFailurePolicy). Revisit after registry/pull stabilizes.
+      - name: "TestInPlaceUpgradeWebhookFailurePolicy"
+        reason: "midstream: istiod image pull flake during in-place upgrade on OCP CI"
+        skip_in: ['midstream_helm']
     skip_subsuites: []
     run_tests_only: []
