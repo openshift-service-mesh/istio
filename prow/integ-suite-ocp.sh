@@ -78,17 +78,19 @@ check_cluster_operators() {
   fi
 
   local timeout_seconds=600 # 10 minutes
-  echo "Validating OpenShift cluster operators are stable..."
+  echo "Validating OpenShift cluster operators are Available (not Degraded)..."
   local end_time=$(( $(date +%s) + timeout_seconds ))
 
   while [ "$(date +%s)" -lt $end_time ]; do
-    # This command uses jq to count operators that are not Available, or are Progressing, or are Degraded.
-    # A healthy cluster should have a count of 0.
+    # ponytail: ignore Progressing=True when Available=True — OCP 4.22 kube-apiserver
+    # NodeInstallerProgressing routinely exceeds 10m and blocked integ-helm before tests ran.
+    # Upgrade path: restore Progressing check once CI clusters finish rolling faster, or
+    # re-land openshift-service-mesh/istio#831-style logging with a longer timeout.
     local unstable_operators
-    unstable_operators=$(oc get clusteroperator -o json | jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length')
+    unstable_operators=$(oc get clusteroperator -o json | jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Degraded" and .status == "True"))] | length')
 
     if [[ $unstable_operators -eq 0 ]]; then
-      echo "All cluster operators are stable."
+      echo "All cluster operators are Available (not Degraded)."
       return 0
     fi
 
@@ -96,7 +98,7 @@ check_cluster_operators() {
     sleep 15
   done
 
-  echo "ERROR: Timeout reached. Not all cluster operators are stable."
+  echo "ERROR: Timeout reached. Not all cluster operators are Available."
   oc get clusteroperator
   exit 1
 }
