@@ -51,7 +51,7 @@ INSTALL_SAIL_OPERATOR="${INSTALL_SAIL_OPERATOR:-"false"}"
 TRUSTED_ZTUNNEL_NAMESPACE="${TRUSTED_ZTUNNEL_NAMESPACE:-"istio-system"}"
 AMBIENT="${AMBIENT:="false"}"
 FIPS="${FIPS:="false"}"
-TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"}"
+TEST_HUB="${TEST_HUB:="image-registry.openshift-image-registry.svc:5000/istio-images"}"
 DEPLOY_GATEWAY_API="false"
 IBM="${IBM:-"false"}"
 
