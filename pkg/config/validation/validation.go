@@ -1440,6 +1440,8 @@ var ValidateAuthorizationPolicy = RegisterValidateFunc("ValidateAuthorizationPol
 						errs = appendErrors(errs, check(len(src.NotNamespaces) != 0, "From.NotNamespaces"))
 						errs = appendErrors(errs, check(len(src.ServiceAccounts) != 0, "From.ServiceAccounts"))
 						errs = appendErrors(errs, check(len(src.NotServiceAccounts) != 0, "From.NotServiceAccounts"))
+						errs = appendErrors(errs, check(len(src.TrustDomains) != 0, "From.TrustDomains"))
+						errs = appendErrors(errs, check(len(src.NotTrustDomains) != 0, "From.NotTrustDomains"))
 						errs = appendErrors(errs, check(len(src.Principals) != 0, "From.Principals"))
 						errs = appendErrors(errs, check(len(src.NotPrincipals) != 0, "From.NotPrincipals"))
 						errs = appendErrors(errs, check(len(src.RequestPrincipals) != 0, "From.RequestPrincipals"))
@@ -1453,6 +1455,7 @@ var ValidateAuthorizationPolicy = RegisterValidateFunc("ValidateAuthorizationPol
 					}
 					errs = appendErrors(errs, check(when.Key == "source.namespace", when.Key))
 					errs = appendErrors(errs, check(when.Key == "source.serviceAccount", when.Key))
+					errs = appendErrors(errs, check(when.Key == "source.trustDomain", when.Key))
 					errs = appendErrors(errs, check(when.Key == "source.principal", when.Key))
 					errs = appendErrors(errs, check(strings.HasPrefix(when.Key, "request.auth."), when.Key))
 				}
@@ -1495,7 +1498,8 @@ var ValidateAuthorizationPolicy = RegisterValidateFunc("ValidateAuthorizationPol
 					}
 					if len(src.Principals) == 0 && len(src.RequestPrincipals) == 0 && len(src.Namespaces) == 0 && len(src.IpBlocks) == 0 &&
 						len(src.RemoteIpBlocks) == 0 && len(src.NotPrincipals) == 0 && len(src.NotRequestPrincipals) == 0 && len(src.NotNamespaces) == 0 &&
-						len(src.NotIpBlocks) == 0 && len(src.NotRemoteIpBlocks) == 0 && len(src.ServiceAccounts) == 0 && len(src.NotServiceAccounts) == 0 {
+						len(src.NotIpBlocks) == 0 && len(src.NotRemoteIpBlocks) == 0 && len(src.ServiceAccounts) == 0 && len(src.NotServiceAccounts) == 0 &&
+						len(src.TrustDomains) == 0 && len(src.NotTrustDomains) == 0 {
 						errs = appendErrors(errs, fmt.Errorf("`from.source` must not be empty, found at rule %d", i))
 					}
 					errs = appendErrors(errs, security.ValidateIPs(from.Source.GetIpBlocks()))
@@ -1506,12 +1510,14 @@ var ValidateAuthorizationPolicy = RegisterValidateFunc("ValidateAuthorizationPol
 					errs = appendErrors(errs, security.CheckEmptyValues("RequestPrincipals", src.RequestPrincipals))
 					errs = appendErrors(errs, security.CheckEmptyValues("Namespaces", src.Namespaces))
 					errs = appendErrors(errs, security.CheckServiceAccount("ServiceAccounts", src.ServiceAccounts))
+					errs = appendErrors(errs, security.CheckTrustDomainValues("TrustDomains", src.TrustDomains))
 					errs = appendErrors(errs, security.CheckEmptyValues("IpBlocks", src.IpBlocks))
 					errs = appendErrors(errs, security.CheckEmptyValues("RemoteIpBlocks", src.RemoteIpBlocks))
 					errs = appendErrors(errs, security.CheckEmptyValues("NotPrincipals", src.NotPrincipals))
 					errs = appendErrors(errs, security.CheckEmptyValues("NotRequestPrincipals", src.NotRequestPrincipals))
 					errs = appendErrors(errs, security.CheckEmptyValues("NotNamespaces", src.NotNamespaces))
 					errs = appendErrors(errs, security.CheckServiceAccount("NotServiceAccounts", src.NotServiceAccounts))
+					errs = appendErrors(errs, security.CheckTrustDomainValues("NotTrustDomains", src.NotTrustDomains))
 					errs = appendErrors(errs, security.CheckEmptyValues("NotIpBlocks", src.NotIpBlocks))
 					errs = appendErrors(errs, security.CheckEmptyValues("NotRemoteIpBlocks", src.NotRemoteIpBlocks))
 					if src.NotPrincipals != nil || src.Principals != nil || src.IpBlocks != nil ||
@@ -1605,9 +1611,30 @@ var ValidateRequestAuthentication = RegisterValidateFunc("ValidateRequestAuthent
 
 		for _, rule := range in.JwtRules {
 			errs = AppendValidation(errs, validateJwtRule(rule))
+			errs = warnPrivateJwksKeys(errs, rule)
 		}
 		return errs.Unwrap()
 	})
+
+// warnPrivateJwksKeys warns if inline Jwks contains private key material.
+// Envoy only needs public keys for token verification.
+func warnPrivateJwksKeys(v Validation, rule *security_beta.JWTRule) Validation {
+	if rule == nil || rule.Jwks == "" {
+		return v
+	}
+	set, err := jwk.Parse([]byte(rule.Jwks))
+	if err != nil {
+		return v
+	}
+	for i := 0; i < set.Len(); i++ {
+		key, _ := set.Get(i)
+		switch key.(type) {
+		case jwk.RSAPrivateKey, jwk.ECDSAPrivateKey, jwk.OKPPrivateKey, jwk.SymmetricKey:
+			v = AppendWarningf(v, "jwks key at index %d contains private key material; only public keys are used for verification", i)
+		}
+	}
+	return v
+}
 
 func validateJwtRule(rule *security_beta.JWTRule) (errs error) {
 	if rule == nil {
