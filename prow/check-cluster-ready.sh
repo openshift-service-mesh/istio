@@ -25,7 +25,7 @@
 #   Sourced:     source ./prow/check-cluster-ready.sh   # provides check_cluster_operators()
 #
 # Environment:
-#   CLUSTER_OPERATOR_TIMEOUT  seconds to wait before giving up (default: 2700)
+#   CLUSTER_OPERATOR_TIMEOUT  seconds to wait before giving up (default: 600)
 
 check_cluster_operators() {
   if ! command -v jq &> /dev/null; then
@@ -33,7 +33,7 @@ check_cluster_operators() {
     return 1
   fi
 
-  local timeout_seconds=${CLUSTER_OPERATOR_TIMEOUT:-2700}
+  local timeout_seconds=${CLUSTER_OPERATOR_TIMEOUT:-600}
   local end_time=$(( $(date +%s) + timeout_seconds ))
   echo "Validating OpenShift cluster operators are stable (timeout: ${timeout_seconds}s)..."
 

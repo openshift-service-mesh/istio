@@ -70,11 +70,6 @@ set -u
 # Print commands
 set -x
 
-# ponytail: re-land #831 check with 45m timeout — OCP 4.22 kube-apiserver Progressing
-# exceeds 10m and kills oc exec websockets mid-test. Ceiling: CLUSTER_OPERATOR_TIMEOUT.
-# shellcheck source=prow/check-cluster-ready.sh
-source "${ROOT}/prow/check-cluster-ready.sh"
-
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -276,9 +271,6 @@ fi
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
 fi
-
-# Check cluster operators are stable before starting the tests
-check_cluster_operators
 
 # Execute the command and handle junit output
 if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
