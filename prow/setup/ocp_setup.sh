@@ -31,7 +31,9 @@ WD=$(dirname "$0")
 WD=$(cd "$WD"; pwd)
 TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
+export IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-"istio-images"}"
 SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
+SAIL_OPERATOR_BRANCH="${SAIL_OPERATOR_BRANCH:-}"  # Will be auto-detected if not set
 IBM="${IBM:-"false"}"
 
 function setup_internal_registry() {
@@ -52,13 +54,14 @@ function setup_internal_registry() {
 
   # Get the registry route
   URL=$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
-  # Hub will be equal to the route url/project-name(NameSpace) 
-  export HUB="${URL}/${NAMESPACE}"
+  # Hub will be equal to the route url/project-name(NameSpace)
+  export HUB="${URL}/${IMAGE_NAMESPACE}"
   echo "Internal registry URL: ${HUB}"
 
   # Create namespace from where the image are going to be pushed
   # This is needed because in the internal registry the images are stored in the namespace.
   # If the namespace already exist, it will not fail
+  oc create namespace "${IMAGE_NAMESPACE}" || true
   oc create namespace "${NAMESPACE}" || true
 
   deploy_rolebinding
@@ -86,7 +89,7 @@ items:
   kind: RoleBinding
   metadata:
     name: image-puller
-    namespace: '"$NAMESPACE"'
+    namespace: '"$IMAGE_NAMESPACE"'
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
@@ -102,7 +105,7 @@ items:
   kind: RoleBinding
   metadata:
     name: image-pusher
-    namespace: '"$NAMESPACE"'
+    namespace: '"$IMAGE_NAMESPACE"'
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
@@ -174,7 +177,8 @@ spec:
   installPlanApproval: Automatic' | oc apply -f -
 
   # Check operator Phase is Succeeded
-timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c "until [ $(oc get csv -n metallb-system | awk '/metallb-operator/ {print \$NF}') == 'Succeeded' ]; do sleep 5; done && echo 'The MetalLB operator has been installed.'"
+  # shellcheck disable=SC2016
+  timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until [ "$(oc get csv -n metallb-system | awk "/metallb-operator/ {print \$NF}")" == "Succeeded" ]; do sleep 5; done && echo "The MetalLB operator has been installed."'
 
   # Create MetalLB CR
   echo '
@@ -244,16 +248,51 @@ function cleanup_sail_repo() {
     export TAG="$INITIAL_TAG"
 }
 
+# Detect and set the sail-operator branch based on current Istio branch
+function detect_sail_operator_branch() {
+  # Allow explicit override via environment variable
+  if [ -n "${SAIL_OPERATOR_BRANCH:-}" ]; then
+    echo "Using explicitly set SAIL_OPERATOR_BRANCH: ${SAIL_OPERATOR_BRANCH}"
+    return 0
+  fi
+
+  # Detect current Istio branch
+  local current_branch
+  current_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+
+  # Map Istio branch to sail-operator branch
+  if [[ "${current_branch}" == "main" ]] || [[ "${current_branch}" == "master" ]]; then
+    SAIL_OPERATOR_BRANCH="main"
+  elif [[ "${current_branch}" =~ ^release-[0-9]+\.[0-9]+$ ]]; then
+    # Direct mapping: release-X.Y -> release-X.Y
+    SAIL_OPERATOR_BRANCH="${current_branch}"
+  else
+    # Fallback to main for unrecognized patterns (e.g., feature branches)
+    echo "Warning: Unrecognized branch pattern '${current_branch}', defaulting to sail-operator main branch"
+    SAIL_OPERATOR_BRANCH="main"
+  fi
+
+  export SAIL_OPERATOR_BRANCH
+  echo "Detected sail-operator branch: ${SAIL_OPERATOR_BRANCH} (from Istio branch: ${current_branch})"
+}
+
 function deploy_operator(){
+  # Detect appropriate sail-operator branch before cloning
+  detect_sail_operator_branch
+
+  # Save and unset env vars so sail-operator's make deploy uses its own defaults
   env_save
   unset HUB
   unset TAG
   unset NAMESPACE
-  git clone --depth 1 --branch main $SAIL_REPO_URL || { echo "Failed to clone sail-operator repo"; exit 1; }
+
+  git clone --depth 1 --branch "${SAIL_OPERATOR_BRANCH}" $SAIL_REPO_URL || { echo "Failed to clone sail-operator repo on branch ${SAIL_OPERATOR_BRANCH}"; exit 1; }
   cd sail-operator
   make deploy || { echo "sail-operator make deploy failed"; cleanup_sail_repo ; exit 1; }
   oc -n sail-operator wait --for=condition=Available deployment/sail-operator --timeout=240s || { echo "Failed to start sail-operator"; exit 1; }
+
+  # Restore original env vars for subsequent Istio operations
   cleanup_sail_repo
-  echo "Sail operator deployed"
+  echo "Sail operator deployed from branch: ${SAIL_OPERATOR_BRANCH}"
 
 }
