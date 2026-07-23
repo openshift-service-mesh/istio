@@ -70,6 +70,9 @@ set -u
 # Print commands
 set -x
 
+# shellcheck source=prow/check-cluster-ready.sh
+source "${ROOT}/prow/check-cluster-ready.sh"
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -271,6 +274,10 @@ fi
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
 fi
+
+# Re-check cluster operators after setup: the kube-apiserver can start rolling
+# again during image build/push, dropping the websocket when go test starts.
+check_cluster_operators
 
 # Execute the command and handle junit output
 if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then

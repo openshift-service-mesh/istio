@@ -33,7 +33,7 @@ check_cluster_operators() {
     return 1
   fi
 
-  local timeout_seconds=${CLUSTER_OPERATOR_TIMEOUT:-600}
+  local timeout_seconds=${CLUSTER_OPERATOR_TIMEOUT:-2700}
   local end_time=$(( $(date +%s) + timeout_seconds ))
   echo "Validating OpenShift cluster operators are stable (timeout: ${timeout_seconds}s)..."
 
