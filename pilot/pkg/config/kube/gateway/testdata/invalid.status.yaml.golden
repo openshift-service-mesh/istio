@@ -25,6 +25,11 @@ status:
     status: "False"
     type: Accepted
   - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
+  - lastTransitionTime: fake
     message: Failed to assign to any requested addresses
     reason: UnsupportedAddress
     status: "False"
@@ -51,6 +56,11 @@ status:
     reason: Accepted
     status: "True"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
     reason: Programmed
@@ -103,10 +113,15 @@ status:
     value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
@@ -157,10 +172,15 @@ spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: port 34002 not found for
       hostname "istio-ingressgateway.istio-system.svc.domain.suffix"'
@@ -215,10 +235,15 @@ status:
     value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34001
     reason: Programmed
@@ -272,10 +297,15 @@ status:
     value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
@@ -328,10 +358,15 @@ status:
     value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
@@ -386,10 +421,15 @@ status:
     value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
@@ -444,10 +484,15 @@ status:
     value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
@@ -504,6 +549,11 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
+  - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: hostname "fake-service.com"
       not found'
     reason: AddressNotUsable
@@ -553,10 +603,15 @@ spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: hostname "protocol-lower-case-istio.istio-system.svc.domain.suffix"
       not found'
@@ -607,6 +662,11 @@ status:
     reason: Accepted
     status: "True"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: port 8080 not found for
       hostname "istio-ingressgateway.istio-system.svc.domain.suffix" (hint: the service
@@ -659,10 +719,15 @@ spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: hostname "udp-protocol-istio.istio-system.svc.domain.suffix"
       not found'
@@ -709,10 +774,15 @@ spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
+    message: None of the Gateway's listeners are valid
+    reason: ListenersNotValid
+    status: "False"
     type: Accepted
+  - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
   - lastTransitionTime: fake
     message: 'Failed to assign to any requested addresses: hostname "unknown-protocol-istio.istio-system.svc.domain.suffix"
       not found'

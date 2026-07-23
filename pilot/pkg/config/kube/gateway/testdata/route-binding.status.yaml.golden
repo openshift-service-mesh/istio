@@ -28,6 +28,11 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
+    message: AllowInsecureFallback mode is disabled for frontend validation
+    reason: AllowInsecureFallbackNotConfigured
+    status: "False"
+    type: InsecureFrontendValidationMode
+  - lastTransitionTime: fake
     message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
@@ -835,7 +840,7 @@ status:
       namespace: istio-system
       sectionName: foobar
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: wrong-protocol
@@ -845,7 +850,7 @@ status:
   parents:
   - conditions:
     - lastTransitionTime: fake
-      message: kind gateway.networking.k8s.io/v1alpha2/TCPRoute is not allowed
+      message: kind gateway.networking.k8s.io/v1/TCPRoute is not allowed
       reason: NotAllowedByListeners
       status: "False"
       type: Accepted
