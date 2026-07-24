@@ -35,7 +35,15 @@ SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
 IBM="${IBM:-"false"}"
 
 function setup_internal_registry() {
-  # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target. 
+  # If HUB is already set externally (e.g. quay.io/sail-dev/istio-testing from the
+  # images-build CI step), skip internal registry setup so the pre-set value is not
+  # overwritten with the OCP internal registry route URL.
+  if [ -n "${HUB:-}" ]; then
+    echo "HUB is already set to '${HUB}', skipping internal registry setup."
+    return 0
+  fi
+
+  # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target.
   # If there is no internal registry, the test can't be executed targeting to the internal registry
 
   # Check if the registry pods are running
