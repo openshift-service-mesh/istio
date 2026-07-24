@@ -208,6 +208,9 @@ var (
 	EnableGatewayAPIInferenceExtension = env.Register("ENABLE_GATEWAY_API_INFERENCE_EXTENSION", false,
 		"If true, support gateway inference extension routing apis").Get()
 
+	EnableGatewayAPICACertOnly = env.Register("PILOT_ENABLE_GATEWAY_API_CA_CERT_ONLY", false,
+		"If true, only namespaces containing a Gateway API Gateway will have the CA Bundle ConfigMap injected").Get()
+
 	EnableWildcardHostServiceEntriesForTLS = env.Register("ENABLE_WILDCARD_HOST_SERVICE_ENTRIES_FOR_TLS", false,
 		"If enabled, ServiceEntries with wildcard hosts and dynamic dns resolution will be allowed for TLS traffic. "+
 			"This is a security risk, susceptible to SNI spoofing, and should be used with caution. "+
