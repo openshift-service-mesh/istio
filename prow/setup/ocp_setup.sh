@@ -35,11 +35,12 @@ SAIL_REPO_URL="https://github.com/istio-ecosystem/sail-operator.git"
 IBM="${IBM:-"false"}"
 
 function setup_internal_registry() {
-  # If HUB is already set externally (e.g. quay.io/sail-dev/istio-testing from the
-  # images-build CI step), skip internal registry setup so the pre-set value is not
-  # overwritten with the OCP internal registry route URL.
-  if [ -n "${HUB:-}" ]; then
-    echo "HUB is already set to '${HUB}', skipping internal registry setup."
+  # If HUB is already set to a Quay registry (by the images-build CI step), skip
+  # internal registry setup so the pre-pushed images are not overwritten.
+  # Only skip for quay.io targets — other defaults (e.g. mirror.gcr.io/istio) must
+  # still be overwritten by the OCP internal registry route URL.
+  if [[ "${HUB:-}" == quay.io/* ]]; then
+    echo "HUB is already set to '${HUB}' (Quay registry), skipping internal registry setup."
     return 0
   fi
 
