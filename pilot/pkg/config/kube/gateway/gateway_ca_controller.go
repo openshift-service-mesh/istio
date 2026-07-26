@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 
 	"istio.io/api/label"
 	"istio.io/istio/pilot/pkg/features"

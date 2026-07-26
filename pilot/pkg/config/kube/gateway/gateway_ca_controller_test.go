@@ -24,7 +24,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayapiclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
 	"istio.io/api/label"
@@ -120,7 +120,7 @@ func createConfigMap(t *testing.T, client kubernetes.Interface, name, ns, key st
 
 func createGateway(t *testing.T, client gatewayapiclient.Interface, n, ns string, labels map[string]string) {
 	t.Helper()
-	if _, err := client.GatewayV1beta1().Gateways(ns).Create(context.TODO(), &gateway.Gateway{
+	if _, err := client.GatewayV1().Gateways(ns).Create(context.TODO(), &gateway.Gateway{
 		ObjectMeta: metav1.ObjectMeta{Name: n, Labels: labels},
 	}, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
