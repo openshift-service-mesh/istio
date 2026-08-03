@@ -25,7 +25,7 @@
 #   Sourced:     source ./prow/check-cluster-ready.sh   # provides check_cluster_operators()
 #
 # Environment:
-#   CLUSTER_OPERATOR_TIMEOUT  seconds to wait before giving up (default: 2700)
+#   CLUSTER_OPERATOR_TIMEOUT  seconds to wait before giving up (default: 600)
 
 check_cluster_operators() {
   if ! command -v jq &> /dev/null; then

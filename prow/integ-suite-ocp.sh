@@ -70,8 +70,6 @@ set -u
 # Print commands
 set -x
 
-# ponytail: re-land #831 check with 45m timeout — OCP 4.22 kube-apiserver Progressing
-# exceeds 10m and kills oc exec websockets mid-test. Ceiling: CLUSTER_OPERATOR_TIMEOUT.
 # shellcheck source=prow/check-cluster-ready.sh
 source "${ROOT}/prow/check-cluster-ready.sh"
 
@@ -221,12 +219,16 @@ if [ "${TEST_SUITE}" == "pilot" ]; then
     # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
     base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
     # Stops flaky runs in public clouds
-    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
 fi
 
 # If ambient mode executed, add "ambient" profile and args
-if [ "${AMBIENT}" == "true" ]; then
+if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     base_cmd+=("--istio.test.ambient")
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
     base_cmd+=("--istio.test.kube.ztunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}")
 
@@ -273,7 +275,8 @@ if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
 fi
 
-# Check cluster operators are stable before starting the tests
+# Re-check cluster operators after setup: the kube-apiserver can start rolling
+# again during image build/push, dropping the websocket when go test starts.
 check_cluster_operators
 
 # Execute the command and handle junit output
