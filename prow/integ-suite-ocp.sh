@@ -205,7 +205,7 @@ base_cmd=(
   "--istio.test.openshift"
 )
 
-helm_values="global.platform=openshift"
+helm_values="global.platform=openshift,pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=false"
 
 # IBM specific modifications
 if [ "${IBM}" == "true" ]; then
