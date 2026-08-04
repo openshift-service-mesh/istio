@@ -213,9 +213,12 @@ if [ "${IBM}" == "true" ]; then
 fi
 
 # Gateway Conformance Test related modifications
-if [ "${TEST_SUITE}" == "pilot" ]; then
-    # Until OCP 4.19 default CRDs has https://github.com/kubernetes-sigs/gateway-api/pull/3389 we need following patch
-    git apply --verbose --reject --whitespace=fix --ignore-space-change ./prow/config/sail-operator/istio-gw-api-coredns-fix.patch
+if [ "${TEST_SUITE}" == "pilot" ] || [ "${TEST_SUITE}" == "ambient" ]; then
+    if [ "${TEST_SUITE}" == "pilot" ]; then
+        # Until OCP 4.19 default CRDs has https://github.com/kubernetes-sigs/gateway-api/pull/3389 we need following patch
+        # Patch targets tests/integration/pilot/gateway_conformance_test.go only.
+        git apply --verbose --reject --whitespace=fix --ignore-space-change ./prow/config/sail-operator/istio-gw-api-coredns-fix.patch
+    fi
     # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
     base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
     # Stops flaky runs in public clouds

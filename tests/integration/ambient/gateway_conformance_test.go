@@ -127,6 +127,9 @@ func TestGatewayConformance(t *testing.T) {
 				},
 				TimeoutConfig: ctx.Settings().GatewayConformanceTimeoutConfig,
 			}
+			if ctx.Settings().GatewayConformanceAllowCRDsMismatch {
+				opts.AllowCRDsMismatch = true
+			}
 
 			ctx.Cleanup(func() {
 				if !ctx.Failed() {
