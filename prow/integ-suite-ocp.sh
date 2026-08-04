@@ -205,7 +205,8 @@ base_cmd=(
   "--istio.test.openshift"
 )
 
-helm_values="global.platform=openshift"
+# disable PILOT_ENABLE_ALPHA_GATEWAY_API env here https://github.com/istio/istio/blob/master/tests/integration/base.yaml#L23 since there is no way how to enable experimental gw api crds on OpenShift
+helm_values="global.platform=openshift,pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=false"
 
 # IBM specific modifications
 if [ "${IBM}" == "true" ]; then
