@@ -91,7 +91,12 @@ func (c *Controller) addRegistry(registry serviceregistry.Instance, stop <-chan 
 		c.registries = append(c.registries, &registryEntry{Instance: registry, stop: stop})
 	}
 
-	// Observe the registry for events.
+	c.appendHandlers(registry)
+}
+
+// appendHandlers must be called for every registry added to or swapped into c.registries,
+// else its gateway and service notifications never reach the aggregate controller's handlers.
+func (c *Controller) appendHandlers(registry serviceregistry.Instance) {
 	registry.AppendNetworkGatewayHandler(c.NotifyGatewayHandlers)
 	registry.AppendServiceHandler(c.handlers.NotifyServiceHandlers)
 	registry.AppendServiceHandler(func(prev, curr *model.Service, event model.Event) {
@@ -149,13 +154,23 @@ func (c *Controller) DeleteRegistry(clusterID cluster.ID, providerID provider.ID
 	log.Infof("%s registry for the cluster %s has been deleted.", providerID, clusterID)
 }
 
-// UpdateRegistry atomically replaces an existing registry with a new one.
-// This is used during credential rotation to avoid service disruption.
-// The new registry is started, then atomically swapped with the old one.
+// UpdateRegistry atomically replaces an existing registry with a new one, used
+// during credential rotation to avoid service disruption. The caller must have
+// already started the new registry; UpdateRegistry only performs the swap.
 func (c *Controller) UpdateRegistry(newRegistry serviceregistry.Instance, stop <-chan struct{}) {
 	if stop == nil {
 		log.Warnf("nil stop channel passed to UpdateRegistry for registry %s/%s", newRegistry.Provider(), newRegistry.Cluster())
 	}
+	c.swapRegistry(newRegistry, stop)
+
+	// On an atomic swap the new registry fires its gateway events before appendHandlers wires it;
+	// reload once here to handle the missed events.
+	c.NotifyGatewayHandlers()
+}
+
+// swapRegistry replaces the existing registry for the new registry's cluster/provider in place,
+// or adds it when none exists, and wires the new registry to the controller's handlers.
+func (c *Controller) swapRegistry(newRegistry serviceregistry.Instance, stop <-chan struct{}) {
 	c.storeLock.Lock()
 	defer c.storeLock.Unlock()
 
@@ -167,16 +182,12 @@ func (c *Controller) UpdateRegistry(newRegistry serviceregistry.Instance, stop <
 	if ok {
 		// Replace in place - this is atomic
 		c.registries[index] = &registryEntry{Instance: newRegistry, stop: stop}
+		c.appendHandlers(newRegistry)
 		log.Infof("%s registry for cluster %s has been replaced.", providerID, clusterID)
 	} else {
 		// No existing registry, just add
 		c.addRegistry(newRegistry, stop)
 		log.Infof("%s registry for cluster %s has been added (no previous registry).", providerID, clusterID)
-	}
-
-	// Start the new registry if we're already running
-	if c.running {
-		go newRegistry.Run(stop)
 	}
 }
 

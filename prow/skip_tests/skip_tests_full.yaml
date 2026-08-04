@@ -327,6 +327,96 @@ test_suites:
       - name: "TestGatewayConformance/GatewayFrontendInvalidDefaultClientCertificateValidation"
         reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoutePartiallyInvalidViaInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetDualParentRefIndependence"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetGatewayParentSectionNameNotFound"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetRouteStatusScopedToParentRef"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidBackendRefNonexistent"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidCrossNamespaceBackendRef"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidNonTCPListener"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteMultipleRoutesAttachment"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteParentRefAttachAll"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteParentRefPortAndSectionName"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteWeightedRouting"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRetry"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetProtocolConflict"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetHostnameConflict"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretReferenceGrantSpecific"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretReferenceGrantAllInNamespace"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRequestHeaderModifierBackendWeights"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRequestMultipleMirrors"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteWeight"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayHTTPListenerIsolation"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInfrastructure"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayObservedGenerationBump"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayOptionalAddressValue"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayObservedGenerationBump/observedGeneration_should_increment"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestServiceEntryVisibility"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   telemetry:
