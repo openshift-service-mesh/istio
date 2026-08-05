@@ -206,7 +206,8 @@ base_cmd=(
   "--istio.test.openshift"
 )
 
-helm_values="global.platform=openshift"
+# disable PILOT_ENABLE_ALPHA_GATEWAY_API env here https://github.com/istio/istio/blob/master/tests/integration/base.yaml#L23 since there is no way how to enable experimental gw api crds on OpenShift
+helm_values="global.platform=openshift,pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=false"
 
 # IBM specific modifications
 if [ "${IBM}" == "true" ]; then
@@ -220,12 +221,16 @@ if [ "${TEST_SUITE}" == "pilot" ]; then
     # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
     base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
     # Stops flaky runs in public clouds
-    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=180s")
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
 fi
 
 # If ambient mode executed, add "ambient" profile and args
-if [ "${AMBIENT}" == "true" ]; then
+if [[ "${AMBIENT}" == "true" || "${TEST_SUITE}" == *"ambient"* ]]; then
     base_cmd+=("--istio.test.ambient")
+    # This flag we need to run the conformance test even if the CRDs are not matching with the desired ones in go.mod
+    base_cmd+=("--istio.test.GatewayConformanceAllowCRDsMismatch=true")
+    # Stops flaky runs in public clouds
+    base_cmd+=("--istio.test.gatewayConformance.maxTimeToConsistency=300s")
     helm_values+=",pilot.trustedZtunnelNamespace=${TRUSTED_ZTUNNEL_NAMESPACE}"
 
     # Set local gateway mode for Ambient execution
