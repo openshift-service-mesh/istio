@@ -195,15 +195,6 @@ test_suites:
       - name: "TestGatewayConformance/TLSRouteTerminateSimpleSameNamespace"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicyInvalidKind"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
-        reason: "Disabling test which requires experimental CRDs"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/ListenerSetAllowedNamespaceNone"
         reason: "ListenerSet CRDs is not installed by default"
         skip_in: ['downstream','midstream_sail','midstream_helm']
@@ -227,6 +218,21 @@ test_suites:
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/eNamespaceNone"
         reason: ""
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidKind"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyObservedGenerationBump"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicy"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
         skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites:
       - name: "pqc"
