@@ -79,6 +79,24 @@ test_suites:
       - name: "TestGatewayConformance/BackendTLSPolicy"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']  
+      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteCORSAllowCredentialsBehavior"
+        reason: "Not supported on CIO."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway/unmanaged"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway/managed"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestInferencePoolMultipleTargetPorts"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   security:
