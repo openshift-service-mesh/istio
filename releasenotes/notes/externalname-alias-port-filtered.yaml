@@ -1,0 +1,8 @@
+apiVersion: release-notes/v2
+kind: bug-fix
+area: traffic-management
+releaseNotes:
+  - |
+    **Fixed** ExternalName alias resolution failing with `cluster_not_found` when the alias service
+    does not declare the listener port. `LookupService` now falls back to an unfiltered lookup
+    via `PushContext.ServiceForHostname` when the port-filtered service registry misses the alias.
