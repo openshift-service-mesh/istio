@@ -45,6 +45,9 @@ set -u
 # Print commands
 set -x
 
+# shellcheck source=prow/check-cluster-ready.sh
+source "${ROOT}/prow/check-cluster-ready.sh"
+
 # shellcheck source=common/scripts/kind_provisioner.sh
 source "${ROOT}/prow/setup/ocp_setup.sh"
 
@@ -61,19 +64,22 @@ build_images() {
     # use ubuntu:noble to test vms by default
     nonDistrolessTargets="docker.app docker.app_sidecar_ubuntu_noble docker.ext-authz docker.ztunnel "
 
-    if [[ "${VARIANT:-default}" == "distroless" ]]; then
-        echo "Building distroless images"
+    if [[ -z "${VARIANT:-}" || "${VARIANT}" == "distroless" ]]; then
+        echo "Building default and distroless images"
+        DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="default" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
         DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="distroless" DOCKER_TARGETS="${targets}" make dockerx.pushx
-        DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="default" DOCKER_TARGETS="${nonDistrolessTargets}" make dockerx.pushx
     else
         echo "Building default images"
-        DOCKER_ARCHITECTURES="${arch}"  DOCKER_BUILD_VARIANTS="${VARIANT:-default}" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
+        DOCKER_ARCHITECTURES="${arch}" DOCKER_BUILD_VARIANTS="${VARIANT}" DOCKER_TARGETS="${targets} ${nonDistrolessTargets}" make dockerx.pushx
     fi
 }
 
 # Define the artifacts directory
 ARTIFACTS_DIR="${ARTIFACT_DIR:-"${WD}/artifacts"}"
 JUNIT_REPORT_DIR="${ARTIFACTS_DIR}/junit"
+# Create the junit output directory unconditionally so it is available even when
+# SKIP_SETUP=true (images pre-built by the servicemesh-istio-images-build CI step).
+mkdir -p "${JUNIT_REPORT_DIR}"
 
 # Install MetalLB if the flag is set
 if [ "${INSTALL_METALLB}" == "true" ]; then
@@ -83,9 +89,6 @@ if [ "${INSTALL_METALLB}" == "true" ]; then
 # Run the setup only if MetalLB is not being installed and setup is not skipped
 elif [ "${INSTALL_METALLB}" != "true" ] && [ "${SKIP_SETUP}" != "true" ]; then
     echo "Running full setup..."
-
-    # Ensure artifacts directory exists
-    mkdir -p "${JUNIT_REPORT_DIR}"
 
     # Setup the internal registry for the OCP cluster
     setup_internal_registry
@@ -108,8 +111,12 @@ fi
 # Run the integration tests
 echo "Running integration tests"
 
-# Set the HUB to the internal registry svc URL to avoid the need to authenticate to pull images
-HUB="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"
+# Set the HUB to the internal registry svc URL to avoid the need to authenticate
+# to pull images. Skip if HUB already targets quay.io (images were pre-pushed by
+# the servicemesh-istio-images-build CI step).
+if [[ "${HUB:-}" != quay.io/* ]]; then
+    HUB="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}"
+fi
 
 # Check OCP version
 if ! OCP_VERSION_FULL=$(oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null); then
@@ -152,7 +159,7 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
           "--istio.test.work_dir=${ARTIFACTS_DIR}"
           "--istio.test.skipTProxy=true"
           "--istio.test.skipVM=true"
-          "--istio.test.kube.helm.values=global.platform=openshift"
+          "--istio.test.kube.helm.values=global.platform=openshift,pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=false"
           "--istio.test.istio.enableCNI=true"
           "--istio.test.hub=${HUB}"
           "--istio.test.tag=${TAG}"
@@ -163,6 +170,10 @@ base_cmd=("go" "test" "-p" "1" "-v" "-count=1" "-tags=integ" "-vet=off" "-timeou
 if [ -n "${SKIP_TESTS}" ]; then
     base_cmd+=("-skip" "${SKIP_TESTS}")
 fi
+
+# Re-check cluster operators after setup: the kube-apiserver can start rolling
+# again during image build/push, dropping the websocket when go test starts.
+check_cluster_operators
 
 # Execute the command and handle junit output
 if [ "${TEST_OUTPUT_FORMAT}" == "junit" ]; then
