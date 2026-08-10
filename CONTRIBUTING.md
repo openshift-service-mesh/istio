@@ -22,4 +22,9 @@ All pull requests to this repository must include one of the following labels:
 - Are experimental or short-term modifications
 - Will be replaced by upstream synchronization
 
-**Purpose**: These labels help release maintainers identify which changes to include when creating new release branches for OSSM.
+**`pending-upstream-sync`**: Use for changes awaiting upstream synchronization that:
+- Should be cherry-picked to release branches only until the equivalent change is synced from upstream Istio
+- Are backported from upstream but not yet in the midstream sync
+- Will eventually be replaced by the upstream version
+
+**Purpose**: These labels help release maintainers identify which changes to include when creating new release branches for OSSM. Exactly one label must be applied per PR; applying more than one will fail the label check.
