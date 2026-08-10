@@ -1,8 +1,13 @@
 # Contribution guidelines
 
-So you want to hack on Istio? Yay! Please refer to Istio's overall
+> **This is the Red Hat midstream fork of [istio/istio](https://github.com/istio/istio).**
+> See [docs/upstream.md](docs/upstream.md) for the full upstream contribution workflow,
+> branch mapping, sync process, and guidance on whether a change belongs here or upstream.
+
+So you want to hack on Istio? Please refer to Istio's overall
 [contribution guidelines](https://github.com/istio/community/blob/master/CONTRIBUTING.md)
-to find out how you can help.
+for upstream contribution. For OSSM-specific changes in this midstream repository, follow
+the requirements below.
 
 ## OSSM-Specific Requirements
 
