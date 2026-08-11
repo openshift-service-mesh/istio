@@ -33,7 +33,16 @@ TIMEOUT=300
 export NAMESPACE="${NAMESPACE:-"istio-system"}"
 
 function setup_internal_registry() {
-  # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target. 
+  # If HUB is already set to a Quay registry (by the images-build CI step), skip
+  # internal registry setup so the pre-pushed images are not overwritten.
+  # Only skip for quay.io targets — other defaults (e.g. mirror.gcr.io/istio) must
+  # still be overwritten by the OCP internal registry route URL.
+  if [[ "${HUB:-}" == quay.io/* ]]; then
+    echo "HUB is already set to '${HUB}' (Quay registry), skipping internal registry setup."
+    return 0
+  fi
+
+  # Validate that the internal registry is running in the OCP Cluster, configure the variable to be used in the make target.
   # If there is no internal registry, the test can't be executed targeting to the internal registry
 
   # Check if the registry pods are running
@@ -114,6 +123,15 @@ items:
 
 # Deploy MetalLB in the OCP cluster and configure IP address pool
 function deployMetalLB() {
+  # Check if MetalLB is already deployed
+  echo "Checking if MetalLB is already deployed..."
+  if oc get metallb metallb -n metallb-system && oc get ipaddresspool default -n metallb-system &> /dev/null; then
+    echo "MetalLB is already deployed (MetalLB CR and IPAddressPool CR exist), skipping..."
+    return 0
+  else
+    echo "MetalLB CR or IPAddressPool CR is not deployed, deploying..."
+  fi
+
   # Create the metallb-system namespace
   echo '
 apiVersion: v1
@@ -132,7 +150,8 @@ spec:
   channel: stable
   name: metallb-operator
   source: redhat-operators
-  sourceNamespace: openshift-marketplace' | oc apply -f -
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic' | oc apply -f -
 
   # Check operator Phase is Succeeded
   # shellcheck disable=SC2016
@@ -147,7 +166,7 @@ metadata:
   namespace: metallb-system' | oc apply -f -
 
   # Check MetalLB controller is running
-timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c 'until oc get pods -n metallb-system --no-headers | grep controller | grep "Running"; do sleep 5; done && echo "The MetalLB controller is running."'
+  timeout --foreground -v -s SIGHUP -k ${TIMEOUT} ${TIMEOUT} bash -c "until oc get pods -n metallb-system --no-headers | grep controller | grep 'Running'; do sleep 5; done && echo 'The MetalLB controller is running.'"
 
   # Get Nodes Internal IP by using: kubectl get nodes -l node-role.kubernetes.io/worker -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
   NODE_IPS=$(oc get nodes -l node-role.kubernetes.io/worker -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' ',')
