@@ -40,9 +40,9 @@ sail-operator repository's `docs/upstream.md` for the full mapping including OCP
 1. **Prefer upstream first.** Changes that are not OSSM-specific should be proposed as pull
    requests to the upstream Istio repository. Once merged upstream, they will be synced to
    the midstream fork.
-2. **OSSM-specific changes** that have no relevance to the community project (OpenShift CI
+1. **OSSM-specific changes** that have no relevance to the community project (OpenShift CI
    configs, FIPS patches, OSSM-only features) go directly to the midstream repository.
-3. Bug fixes that affect both upstream and midstream should land upstream first to avoid
+1. Bug fixes that affect both upstream and midstream should land upstream first to avoid
    divergence.
 
 ## Sync Process
