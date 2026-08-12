@@ -25,8 +25,8 @@ assumptions about internals.
 
 ## Repository Context
 
-- **Upstream**: https://github.com/istio/istio
-- **Midstream**: https://github.com/openshift-service-mesh/istio
+- **Upstream**: <https://github.com/istio/istio>
+- **Midstream**: <https://github.com/openshift-service-mesh/istio>
 - Changes in this fork are OSSM-specific patches layered on top of upstream Istio.
 - Prefer landing changes upstream first; only commit OSSM-specific work directly here.
 
