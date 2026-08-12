@@ -15,21 +15,17 @@ the requirements below.
 
 All pull requests to this repository must include one of the following labels:
 
-**`permanent-change`**: Use for OSSM-specific changes that:
-- Are added directly to this repository (not synced from upstream)
-- Should be cherry-picked to new release branches
+**`permanent-change`**: Used for OSSM-specific changes (would not be submitted upstream):
+- Mandatory to be cherry-picked to all new minor release branches
+- Permanent in OSSM codebase -> added directly to this repository (not synced from upstream)
 - Include OpenShift-specific features and customizations
-- Will remain permanently in the OSSM codebase
 
-**`no-permanent-change`**: Use for temporary changes that:
-- Will be removed from the repository in the future
-- Should NOT be cherry-picked to release branches
-- Are experimental or short-term modifications
-- Will be replaced by upstream synchronization
+**`no-permanent-change`**: Used for a specific release branch:
+- Used for Automator sync PRs
+- This PR/commit will NOT be cherry-picked to next minor release branches
 
-**`pending-upstream-sync`**: Use for changes awaiting upstream synchronization that:
-- Should be cherry-picked to release branches only until the equivalent change is synced from upstream Istio
-- Are backported from upstream but not yet in the midstream sync
-- Will eventually be replaced by the upstream version
+**`pending-upstream-sync`**: Use for changes expected to land from Istio upstream:
+- PR were merged into supported upstream branches and yet to land into relevant midstream release branches
+- For new release branches: cherry-pick automation checks if the commit already landed (synced) from upstream and if found exclude it from the cherry-pick list proposed for the release maintainer
 
 **Purpose**: These labels help release maintainers identify which changes to include when creating new release branches for OSSM. Exactly one label must be applied per PR; applying more than one will fail the label check.
