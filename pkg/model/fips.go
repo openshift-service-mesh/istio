@@ -62,7 +62,9 @@ func EnforceGoCompliance(ctx *gotls.Config) {
 	case common_features.FIPS_140_3_REDHAT:
 		// Red Hat's OpenSSL-based Go runtime uses its own FIPS module for cipher selection.
 		// We only enforce TLS version bounds; cipher suites and curves are left to the FIPS module.
-		ctx.MinVersion = gotls.VersionTLS12
+		if ctx.MinVersion < gotls.VersionTLS12 {
+			ctx.MinVersion = gotls.VersionTLS12
+		}
 		ctx.MaxVersion = gotls.VersionTLS13
 		return
 	case common_features.PQC:
