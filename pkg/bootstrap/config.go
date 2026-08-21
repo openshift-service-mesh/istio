@@ -71,6 +71,9 @@ const (
 	// "component" suffix is for istio_build metric.
 	v2Prefixes = "reporter=,"
 	v2Suffix   = ",component,istio"
+
+	sidecarStatsFlushIntervalAnnotation    = "sidecar.istio.io/statsFlushInterval"
+	sidecarStatsEvictionIntervalAnnotation = "sidecar.istio.io/statsEvictionInterval"
 )
 
 var envoyWellKnownCompressorLibrary = sets.String{
@@ -327,7 +330,7 @@ func getStatsOptions(meta *model.BootstrapNodeMetadata) []option.Instance {
 	}
 
 	statsFlushInterval := 5 * time.Second // Default value is 5s.
-	if v, exits := meta.Annotations[annotation.SidecarStatsFlushInterval.Name]; exits {
+	if v, exits := meta.Annotations[sidecarStatsFlushIntervalAnnotation]; exits {
 		d, err := time.ParseDuration(v)
 		if err == nil {
 			statsFlushInterval = d
@@ -337,7 +340,7 @@ func getStatsOptions(meta *model.BootstrapNodeMetadata) []option.Instance {
 		}
 	}
 
-	if eviction, exits := meta.Annotations[annotation.SidecarStatsEvictionInterval.Name]; exits {
+	if eviction, exits := meta.Annotations[sidecarStatsEvictionIntervalAnnotation]; exits {
 		statsEvictionInterval, err := time.ParseDuration(eviction)
 		if err != nil {
 			log.Warnf("Failed to parse stats eviction interval %v: %v", eviction, err)
