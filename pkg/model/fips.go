@@ -66,7 +66,9 @@ func EnforceGoCompliance(ctx *gotls.Config) {
 				"TLS 1.3 cipher suites will not be restricted to FIPS-approved algorithms. "+
 				"Set GODEBUG=fips140=only to enable full FIPS 140-3 compliance.", common_features.FIPS_140_3)
 		}
-		ctx.MinVersion = gotls.VersionTLS12
+		if ctx.MinVersion < gotls.VersionTLS12 {
+			ctx.MinVersion = gotls.VersionTLS12
+		}
 		ctx.MaxVersion = gotls.VersionTLS13
 		// CipherSuites only controls TLS 1.2 cipher selection. TLS 1.3 cipher suites
 		// are not configurable via tls.Config and are restricted to FIPS-approved
