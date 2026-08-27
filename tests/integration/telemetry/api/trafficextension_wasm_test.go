@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	wasmImageName               = "istio-testing/wasm/header-injector"
-	wasmInjectedHeader          = "x-resp-injection"
+	wasmImageName                = "istio-testing/wasm/header-injector"
+	wasmInjectedHeader           = "x-resp-injection"
 	trafficExtensionWasmFile     = "testdata/trafficextension-wasm.yaml"
 	trafficExtensionWasmHTTPFile = "testdata/trafficextension-wasm-http.yaml"
 )
@@ -86,9 +86,9 @@ func applyTrafficExtensionWasmConfig(ctx framework.TestContext, ns string, args 
 func installWasmTrafficExtension(ctx framework.TestContext, filterName, wasmModuleURL, imagePullPolicy, filterVersion, path string) error {
 	args := map[string]any{
 		"TrafficExtensionName": filterName,
-		"TestWasmModuleURL":   wasmModuleURL,
-		"FilterVersion":       filterVersion,
-		"TargetAppName":       GetTarget().(echo.Instances).NamespacedName().Name,
+		"TestWasmModuleURL":    wasmModuleURL,
+		"FilterVersion":        filterVersion,
+		"TargetAppName":        GetTarget().(echo.Instances).NamespacedName().Name,
 	}
 
 	if len(imagePullPolicy) != 0 {
@@ -255,9 +255,9 @@ func TestTrafficExtension_GatewaySelection(t *testing.T) {
 
 			gatewayArgs := map[string]any{
 				"TrafficExtensionName": "gateway-wasm-filter",
-				"TestWasmModuleURL":   wasmModuleURL,
-				"FilterVersion":       "v1",
-				"TargetGatewayName":   GetTarget().(echo.Instances).ServiceName() + "-gateway",
+				"TestWasmModuleURL":    wasmModuleURL,
+				"FilterVersion":        "v1",
+				"TargetGatewayName":    GetTarget().(echo.Instances).ServiceName() + "-gateway",
 			}
 
 			if err := applyTrafficExtensionWasmConfig(t, apps.Namespace.Name(), gatewayArgs, "testdata/trafficextension-gateway-wasm.yaml"); err != nil {
