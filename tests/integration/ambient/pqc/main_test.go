@@ -281,7 +281,6 @@ spec:
 				}, serviceEntryYaml).
 				ApplyOrFail(t)
 
->>>>>>> 7a510288a4 (Cherry-pick downstream changes to release-1.30 (#761))
 			t.NewSubTest("TLS connection with PQC-compliant settings should succeed").Run(func(t framework.TestContext) {
 				a.CallOrFail(t, echo.CallOptions{
 					To: server,
