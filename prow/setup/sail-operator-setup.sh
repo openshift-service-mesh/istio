@@ -349,7 +349,7 @@ function install_gateways() {
   # patch egress gateway canonical-revision
   yq eval 'select(.kind == "Deployment") | .spec.template.metadata.labels["service.istio.io/canonical-revision"] = "latest"' "${WORKDIR}"/istio-egressgateway.yaml > "${WORKDIR}"/istio-egressgateway-deployment.yaml
   oc apply -f "${WORKDIR}"/istio-egressgateway-deployment.yaml
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod $(oc get pods -n istio-system --no-headers | awk "$3==\"ErrImagePull\" {print $1}" | head -n 1) -n istio-system; exit 1;}
+  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-ingressgateway --timeout=60s || { echo "Failed to start istio-ingressgateway"; oc get pods -n "$NAMESPACE" -o wide; oc describe pod "$(oc get pods -n istio-system --no-headers | awk '$3=="ErrImagePull" {print $1}' | head -n 1)" -n istio-system; exit 1;}
   oc -n "$NAMESPACE" wait --for=condition=Available deployment/istio-egressgateway --timeout=60s || { echo "Failed to start istio-egressgateway";  kubectl get istios; oc get pods -n "$NAMESPACE" -o wide; exit 1;}
   echo "Gateways created."
 }
@@ -406,7 +406,7 @@ if [ "$1" = "install" ]; then
   #We need to patch istio gw api if istio version is before v1.26.0 Because the fix which lets execute GatewayConformance test on OCP
   #is introduced in  istio v1.26.0 https://github.com/kubernetes-sigs/gateway-api/pull/3389. This patch is introduced as workaround to run the tests
   if [ "$(printf '%s\n' "$MINOR_VERSION" "v1.26.0" | sort -V | head -n1)" = "$MINOR_VERSION" ] && [ "$MINOR_VERSION" != "v1.26.0" ]; then
-    echo "ISTIO_VERSION "$ISTIO_VERSION" is before v1.26.0 patching istio gateway coredns"
+    echo "ISTIO_VERSION $ISTIO_VERSION is before v1.26.0 patching istio gateway coredns"
     git apply "${PROW}"/config/sail-operator/istio-gw-api-coredns-fix.patch
   fi
 elif [ "$1" = "cleanup" ]; then

@@ -3984,7 +3984,7 @@ func restartZtunnel(t framework.TestContext, c cluster.Cluster) {
 			}
 		}`, time.Now().Format(time.RFC3339)) // e.g., “2006-01-02T15:04:05Z07:00”
 	ztunnelNS := i.Settings().ZtunnelNamespace
-	ds := t.Clusters().Default().Kube().AppsV1().DaemonSets(ztunnelNS)
+	ds := c.Kube().AppsV1().DaemonSets(ztunnelNS)
 	_, err := ds.Patch(context.Background(), "ztunnel", types.StrategicMergePatchType, []byte(patchData), patchOpts)
 	if err != nil {
 		t.Fatal(err)
