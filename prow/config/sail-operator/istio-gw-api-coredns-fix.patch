@@ -5,26 +5,19 @@ Date:   Tue Oct 15 12:21:25 2024 +0200
     Fix gateway conformance on OCP
 
 diff --git a/tests/integration/pilot/gateway_conformance_test.go b/tests/integration/pilot/gateway_conformance_test.go
-index 8bcade301e..4a70d7fc23 100644
+index 51b520e9ef..1b4f31724d 100644
 --- a/tests/integration/pilot/gateway_conformance_test.go
 +++ b/tests/integration/pilot/gateway_conformance_test.go
-@@ -104,6 +104,7 @@ func TestGatewayConformance(t *testing.T) {
- 			hostnameType := v1.AddressType("Hostname")
- 			istioVersion, _ := env.ReadVersion()
- 			opts := suite.ConformanceOptions{
-+				BaseManifests:           "gateway-conformance-manifests.yaml",
- 				Client:                   c,
- 				Clientset:                gatewayConformanceInputs.Client.Kube(),
- 				ClientOptions:            clientOptions,
-@@ -111,7 +112,7 @@ func TestGatewayConformance(t *testing.T) {
- 				GatewayClassName:         i.Settings().GatewayClassName,
- 				Debug:                    scopes.Framework.DebugEnabled(),
- 				CleanupBaseResources:     gatewayConformanceInputs.Cleanup,
--				ManifestFS:               []fs.FS{&conformance.Manifests},
-+				ManifestFS:               []fs.FS{os.DirFS("testdata"), &conformance.Manifests},
- 				SupportedFeatures:        features.SetsToNamesSet(supportedFeatures),
- 				SkipTests:                maps.Keys(skippedTests),
- 				UsableNetworkAddresses:   []v1.GatewaySpecAddress{{Value: "infra-backend-v1.gateway-conformance-infra.svc.cluster.local", Type: &hostnameType}},
+@@ -142,7 +142,8 @@ func TestGatewayConformance(t *testing.T) {
+ 				Clientset:     gatewayConformanceInputs.Client.Kube(),
+ 				ClientOptions: clientOptions,
+ 				RestConfig:    gatewayConformanceInputs.Client.RESTConfig(),
+-				ManifestFS:    []fs.FS{&conformance.Manifests},
++				BaseManifests: "gateway-conformance-manifests.yaml",
++				ManifestFS:    []fs.FS{os.DirFS("testdata"), &conformance.Manifests},
+ 			}
+ 			if rev := ctx.Settings().Revisions.Default(); rev != "" {
+ 				opts.NamespaceLabels = map[string]string{
 diff --git a/tests/integration/pilot/testdata/gateway-conformance-manifests.yaml b/tests/integration/pilot/testdata/gateway-conformance-manifests.yaml
 new file mode 100644
 index 0000000000..d78c853007
