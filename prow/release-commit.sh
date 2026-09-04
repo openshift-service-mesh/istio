@@ -117,3 +117,4 @@ if [[ -z "${DRY_RUN:-}" ]]; then
       --s3bucket "${R2_BUCKET}" --s3aliases "${TAG},${NEXT_VERSION}-dev" --s3-base-endpoint "${ENDPOINT}" \
       --dockerhub "gcr.io/istio-testing" --helmhub "${HELM_HUB}" --dockertags "${TAG},${VERSION},${NEXT_VERSION}-dev"
 fi
+

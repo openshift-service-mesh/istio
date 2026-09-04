@@ -4121,7 +4121,7 @@ func TestZtunnelSecureMetrics(t *testing.T) {
 				}
 
 				ztunnelNS := i.Settings().ZtunnelNamespace
-				k8sPods := c.Kube().CoreV1().Pods(ztunnelNS)
+				k8sPods := tc.Clusters().Default().Kube().CoreV1().Pods(ztunnelNS)
 
 				// Get ztunnel pod info
 				ztunnelPods, err := k8sPods.List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ztunnel"})
@@ -4132,7 +4132,7 @@ func TestZtunnelSecureMetrics(t *testing.T) {
 				ztunnelPodIP := ztunnelPod.Status.PodIP
 				ztunnelMetricsPort := 15020 // Default ztunnel metrics port
 				ztunnelServiceAccount := ztunnelPod.Spec.ServiceAccountName
-				trustDomain := util.GetTrustDomain(c, ztunnelNS)
+				trustDomain := util.GetTrustDomain(tc.Clusters().Default(), ztunnelNS)
 				// Extract ztunnel app labels for canonical service/revision
 				ztunnelAppLabel := ztunnelPod.Labels["app"]
 				ztunnelVersionLabel := ztunnelPod.Labels["app.kubernetes.io/version"]
