@@ -76,6 +76,12 @@ func EnforceGoCompliance(ctx *gotls.Config) {
 		ctx.CipherSuites = fipsGoCiphers
 		ctx.CurvePreferences = []gotls.CurveID{gotls.CurveP256, gotls.CurveP384}
 		return
+	case common_features.FIPS_140_3_REDHAT:
+		// Red Hat's OpenSSL-based Go runtime uses its own FIPS module for cipher selection.
+		// We only enforce TLS version bounds; cipher suites and curves are left to the FIPS module.
+		ctx.MinVersion = gotls.VersionTLS12
+		ctx.MaxVersion = gotls.VersionTLS13
+		return
 	case common_features.PQC:
 		ctx.MinVersion = gotls.VersionTLS13
 		ctx.CipherSuites = []uint16{gotls.TLS_AES_128_GCM_SHA256, gotls.TLS_AES_256_GCM_SHA384}
@@ -122,6 +128,15 @@ func EnforceCompliance(ctx *tls.CommonTlsContext) {
 		// - For TLS 1.3, only AES-GCM
 		// - P-256 or P-384 for key agreement
 		ctx.TlsParams.CompliancePolicies = []tls.TlsParameters_CompliancePolicy{tls.TlsParameters_FIPS_202205}
+		return
+	case common_features.FIPS_140_3_REDHAT:
+		if ctx.TlsParams == nil {
+			ctx.TlsParams = &tls.TlsParameters{}
+		}
+		ctx.TlsParams.TlsMinimumProtocolVersion = tls.TlsParameters_TLSv1_2
+		ctx.TlsParams.TlsMaximumProtocolVersion = tls.TlsParameters_TLSv1_3
+		ctx.TlsParams.CipherSuites = nil
+		ctx.TlsParams.EcdhCurves = nil
 		return
 	case common_features.PQC:
 		if ctx.TlsParams == nil {
