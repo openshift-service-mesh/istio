@@ -151,17 +151,21 @@ if ! OCP_VERSION_FULL=$(oc get clusterversion version -o jsonpath='{.status.desi
     echo "Failed to detect OpenShift version. Are you connected to a cluster?"
     exit 1
 fi
-OCP_VERSION_MINOR=$(echo "$OCP_VERSION_FULL" | cut -d. -f2)
+OCP_VERSION_MAJOR_MINOR=$(echo "$OCP_VERSION_FULL" | cut -d. -f1,2)
 
 # Compare versions
 version_ge() {
-    # Returns 0 if $1 >= $2
+    # Returns 0 if $1 >= $2.
+    # sort -V does true version-aware sorting (compares major first, then minor,
+    # e.g. 5.0 > 4.19), so if $2 sorts first then $1 is greater than or equal to it.
     [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]
 }
 
 # Starting from OCP 4.19, Gateway API CRDs comes pre-installed and could not be modified by the user.
 # So for OCP version 4.19 and above, we're not deploying GW API CRDs.
-if version_ge "$OCP_VERSION_MINOR" "19"; then
+# Note: compare the full major.minor (not just the minor) so that a major bump
+# (e.g. 5.0) is correctly treated as >= 4.19 instead of falling back to 0 >= 19.
+if version_ge "$OCP_VERSION_MAJOR_MINOR" "4.19"; then
     echo "Openshift version 4.19 or above. Gateway API CRDs comes pre-installed with the cluster."
 else
     echo "Openshift version below 4.19. Deploying Gateway API CRDs."
