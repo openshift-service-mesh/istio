@@ -136,6 +136,33 @@ test_suites:
       - name: "TestInferencePoolMultipleTargetPorts"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceNone"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceSame"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceSelector"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedRoutesNamespaces"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedRoutesSupportedKinds"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetDefaultNotAllowed"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetHostnameConflict"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetHTTPRouting"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetProtocolConflict"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   security:
