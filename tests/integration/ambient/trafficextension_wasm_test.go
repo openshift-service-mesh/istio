@@ -78,11 +78,11 @@ func installTrafficExtensionWasm(ctx framework.TestContext, filterName, wasmModu
 
 	args := map[string]any{
 		"TrafficExtensionName": filterName,
-		"TestWasmModuleURL":   wasmModuleURL,
-		"FilterVersion":       filterVersion,
-		"TargetKind":          kind,
-		"TargetGroup":         group,
-		"TargetName":          name,
+		"TestWasmModuleURL":    wasmModuleURL,
+		"FilterVersion":        filterVersion,
+		"TargetKind":           kind,
+		"TargetGroup":          group,
+		"TargetName":           name,
 	}
 
 	if len(imagePullPolicy) != 0 {

@@ -1,0 +1,110 @@
+# Test Configuration - Smoke Test Suite
+# This file centralizes test run configuration for all runners (midstream_sail, jenkins, etc.)
+# The data are used to run Istio Integration tests, to fill the command:
+# integ-suite-ocp.sh ${test_suite} ${skip_tests} ${skip_subsuites} ${run_tests_only}
+
+# SMOKE tests comments:
+# Explicit skip_subsuites for smoke tests is because even if the specific test is not in the subsuite, the test framework still sets up and cleans up env for that subsuite which takes time which we can save.
+
+test_suites:
+  pilot:
+    skip_tests: []
+    skip_subsuites:
+      - name: "analysis"
+        skip_in: ['downstream','midstream_sail']
+      - name: "cni"
+        skip_in: ['downstream','midstream_sail']
+      - name: "gatewayinstance"
+        skip_in: ['downstream','midstream_sail']
+      - name: "gie"
+        skip_in: ['downstream','midstream_sail']
+      - name: "localwatcher"
+        skip_in: ['downstream','midstream_sail']
+      - name: "mcs/autoexport"
+        skip_in: ['downstream','midstream_sail']
+      - name: "mcs/discoverability"
+        skip_in: ['downstream','midstream_sail']
+      - name: "multiplecontrolplanes"
+        skip_in: ['downstream','midstream_sail']
+      - name: "proxyconfig"
+        skip_in: ['downstream','midstream_sail']
+      - name: "revisions"
+        skip_in: ['downstream','midstream_sail']
+    run_tests_only:
+      - name: "TestTraffic"
+        skip_in: ['downstream','midstream_sail']
+  security:
+    skip_tests: []
+    skip_subsuites:
+      - name: "ca_custom_root"
+        skip_in: ['downstream','midstream_sail']
+      - name: "cacert_rotation"
+        skip_in: ['downstream','midstream_sail']
+      - name: "file_mounted_certs"
+        skip_in: ['downstream','midstream_sail']
+      - name: "filebased_tls_origination"
+        skip_in: ['downstream','midstream_sail']
+      - name: "https_jwt"
+        skip_in: ['downstream','midstream_sail']
+      - name: "policy_attachment_only"
+        skip_in: ['downstream','midstream_sail']
+      - name: "remote_jwks"
+        skip_in: ['downstream','midstream_sail']
+      - name: "quic"
+        skip_in: ['downstream','midstream_sail']
+      - name: "crl"
+        skip_in: ['downstream','midstream_sail']
+      - name: "pqc"
+        skip_in: ['downstream','midstream_sail']
+    run_tests_only:
+      - name: "TestStrictMTLS"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestReachability"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestTlsGateways"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestMtlsGateways"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestAuthz_JWT"
+        skip_in: ['downstream','midstream_sail']
+  ambient:
+    skip_tests: []
+    skip_subsuites:
+      - name: "cni"
+        skip_in: ['downstream','midstream_sail']
+      - name: "waypoint"
+        skip_in: ['downstream','midstream_sail']
+      - name: "cnirepair"
+        skip_in: ['downstream','midstream_sail']
+      - name: "cniupgrade"
+        skip_in: ['downstream','midstream_sail']
+      - name: "untaint"
+        skip_in: ['downstream','midstream_sail']
+      - name: "pqc"
+        skip_in: ['downstream','midstream_sail']
+    run_tests_only:
+      - name: "TestTraffic"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestServices"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestAuthorizationL4"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestAuthorizationL7"
+        skip_in: ['downstream','midstream_sail']
+  telemetry:
+    skip_tests:
+      - name: "TestDashboard/pilot-dashboard.json"
+        skip_in: ['downstream']
+        reason: "It is failing at times during smoke test execution. Probably, it expects to run other tests before, which are not run during the smoke test"
+    skip_subsuites:
+      - name: "tracing/otelcollector"
+        skip_in: ['downstream','midstream_sail']
+      - name: "tracing/zipkin|policy"
+        skip_in: ['downstream','midstream_sail']
+    run_tests_only:
+      - name: "TestAccessLogs"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestDashboard"
+        skip_in: ['downstream','midstream_sail']
+      - name: "TestGRPCCountMetrics"
+        skip_in: ['downstream','midstream_sail']

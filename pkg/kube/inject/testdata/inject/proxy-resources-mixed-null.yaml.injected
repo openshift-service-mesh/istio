@@ -52,10 +52,11 @@ spec:
         name: istio-init
         resources:
           limits:
-            memory: 500Mi
+            cpu: "2"
+            memory: 1Gi
           requests:
             cpu: 100m
-            ephemeral-storage: 1Gi
+            memory: 128Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -166,10 +167,11 @@ spec:
           timeoutSeconds: 3
         resources:
           limits:
-            memory: 500Mi
+            cpu: "2"
+            memory: 1Gi
           requests:
             cpu: 100m
-            ephemeral-storage: 1Gi
+            memory: 128Mi
         restartPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
