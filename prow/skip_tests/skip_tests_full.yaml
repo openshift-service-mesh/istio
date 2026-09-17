@@ -139,6 +139,9 @@ test_suites:
       - name: "TestInferencePoolMultipleTargetPorts"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestTraffic/externalname/routed/auto-http"
+        reason: "Disabling auto-http test till https://github.com/istio/istio/issues/61519 resolved"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
   security:
