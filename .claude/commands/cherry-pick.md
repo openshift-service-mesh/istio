@@ -1,0 +1,33 @@
+# Cherry-pick to release branch
+
+Use this workflow to backport a commit from master to a release branch.
+
+## Steps
+
+1. **Identify the commit** to cherry-pick (merge commit SHA from master).
+
+2. **Checkout the release branch**:
+   ```bash
+   git fetch midstream
+   git checkout release-X.Y
+   ```
+
+3. **Cherry-pick**:
+   ```bash
+   git cherry-pick -x <sha>
+   ```
+   Resolve conflicts if needed. Keep `// OSSM-only:` annotations intact.
+
+4. **Verify tests pass locally**:
+   ```bash
+   make test
+   ```
+
+5. **Push to your fork and open a PR** targeting `openshift-service-mesh/istio:release-X.Y`:
+   ```bash
+   git push origin cherry-pick-<sha>-to-release-X.Y
+   gh pr create --base release-X.Y --title "cherry-pick: <original title>" \
+     --body "Cherry-pick of <sha> from master.\n\nOriginal PR: #<pr-num>"
+   ```
+
+6. **Apply the same label** as the original PR.
