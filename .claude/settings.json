@@ -18,12 +18,10 @@
       "Bash(ls:*)",
       "Bash(gh pr:*)",
       "Bash(gh issue:*)",
-      "Bash(gh api:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:istio.io)",
       "WebFetch(domain:prow.istio.io)",
-      "WebFetch(domain:prow.ci.openshift.org)",
-      "WebSearch"
+      "WebFetch(domain:prow.ci.openshift.org)"
     ]
   }
 }
