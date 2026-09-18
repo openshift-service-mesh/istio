@@ -162,6 +162,8 @@ test_suites:
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/ListenerSetProtocolConflict"
         reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+      - name: "TestTraffic/externalname/routed/auto-http"
+        reason: "Disabling auto-http test till https://github.com/istio/istio/issues/61519 resolved"
         skip_in: ['downstream','midstream_sail','midstream_helm']
     skip_subsuites: []
     run_tests_only: []
