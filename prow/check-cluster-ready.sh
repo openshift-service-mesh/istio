@@ -25,7 +25,7 @@
 #   Sourced:     source ./prow/check-cluster-ready.sh   # provides check_cluster_operators()
 #
 # Environment:
-#   CLUSTER_OPERATOR_TIMEOUT  seconds to wait before giving up (default: 600)
+#   CLUSTER_OPERATOR_TIMEOUT  seconds to wait before giving up (default: 2700)
 
 check_cluster_operators() {
   if ! command -v jq &> /dev/null; then
@@ -33,37 +33,54 @@ check_cluster_operators() {
     return 1
   fi
 
-  local timeout_seconds=${CLUSTER_OPERATOR_TIMEOUT:-2700}
-  local end_time=$(( $(date +%s) + timeout_seconds ))
-  echo "Validating OpenShift cluster operators are stable (timeout: ${timeout_seconds}s)..."
+  local -a kubeconfigs=("")
+  if [[ "${TOPOLOGY:-SINGLE_CLUSTER}" != "SINGLE_CLUSTER" ]] && [[ -n "${KUBECONFIG:-}" ]]; then
+    IFS=':' read -r -a kubeconfigs <<< "${KUBECONFIG}"
+  fi
 
-  while [ "$(date +%s)" -lt "$end_time" ]; do
-    local oc_output unstable_operators
-    if ! oc_output=$(oc get clusteroperator -o json 2>&1); then
-      echo "WARNING: 'oc get clusteroperator' failed (transient error?): ${oc_output}" >&2
+  for kconfig in "${kubeconfigs[@]}"; do
+    local -a kconfig_args=()
+    local kconfig_display="current cluster"
+    if [[ -n "${kconfig}" ]]; then
+      kconfig_args=("--kubeconfig=${kconfig}")
+      kconfig_display="${kconfig}"
+    fi
+
+    local timeout_seconds=${CLUSTER_OPERATOR_TIMEOUT:-2700}
+    local end_time=$(( $(date +%s) + timeout_seconds ))
+    local unstable_operators=1
+    echo "Validating OpenShift cluster operators are stable on ${kconfig_display} (timeout: ${timeout_seconds}s)..."
+
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+      local oc_output
+      if ! oc_output=$(oc "${kconfig_args[@]}" get clusteroperator -o json 2>&1); then
+        echo "WARNING: 'oc get clusteroperator' failed (transient error?): ${oc_output}" >&2
+        sleep 15
+        continue
+      fi
+
+      if ! unstable_operators=$(jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length' <<< "${oc_output}"); then
+        echo "WARNING: jq failed to parse clusteroperator output" >&2
+        sleep 15
+        continue
+      fi
+
+      if [[ $unstable_operators -eq 0 ]]; then
+        echo "All cluster operators are stable on ${kconfig_display}."
+        break
+      fi
+
+      echo "WARNING: ${unstable_operators} unstable operator(s):" >&2
+      jq -r '.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | .metadata.name as $name | .status.conditions[] | select((.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | "  \($name): \(.type)=\(.status) — \(.message)"' <<< "${oc_output}" >&2
       sleep 15
-      continue
-    fi
+    done
 
-    if ! unstable_operators=$(jq '[.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True"))] | length' <<< "${oc_output}"); then
-      echo "WARNING: jq failed to parse clusteroperator output" >&2
-      sleep 15
-      continue
+    if [[ $unstable_operators -ne 0 ]]; then
+      echo "ERROR: Timeout reached. Not all cluster operators are stable on ${kconfig_display}." >&2
+      oc "${kconfig_args[@]}" get clusteroperator >&2 || true
+      return 1
     fi
-
-    if [[ $unstable_operators -eq 0 ]]; then
-      echo "All cluster operators are stable."
-      return 0
-    fi
-
-    echo "WARNING: ${unstable_operators} unstable operator(s):" >&2
-    jq -r '.items[] | select(.status.conditions[] | (.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | .metadata.name as $name | .status.conditions[] | select((.type == "Available" and .status == "False") or (.type == "Progressing" and .status == "True") or (.type == "Degraded" and .status == "True")) | "  \($name): \(.type)=\(.status) — \(.message)"' <<< "${oc_output}" >&2
-    sleep 15
   done
-
-  echo "ERROR: Timeout reached. Not all cluster operators are stable." >&2
-  oc get clusteroperator >&2 || true
-  return 1
 }
 
 # When executed directly (not sourced), run the check and exit with its status.
