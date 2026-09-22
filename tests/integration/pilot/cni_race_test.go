@@ -85,6 +85,9 @@ func TestCNIRaceRepair(t *testing.T) {
 // defaults to repairPods mode, which fixes the pod in place instead of deleting it, so
 // LastTerminationState keeps the original istio-validation failure for the life of the pod.
 // Check the current state instead.
+//
+// A pod that never got a sandbox recovers the slow way: the kubelet only retries sandbox creation
+// on a backoff, and only then do the init containers get to run, so allow generous time here.
 func waitForRepairOrFail(t framework.TestContext, cluster cluster.Cluster, ns namespace.Instance) {
 	retry.UntilSuccessOrFail(t, func() error {
 		pods, err := cluster.Kube().CoreV1().Pods(ns.Name()).List(context.TODO(), metav1.ListOptions{})
@@ -115,5 +118,5 @@ func waitForRepairOrFail(t framework.TestContext, cluster cluster.Cluster, ns na
 			}
 		}
 		return nil
-	}, retry.Delay(1*time.Second), retry.Timeout(2*time.Minute))
+	}, retry.Delay(1*time.Second), retry.Timeout(5*time.Minute))
 }

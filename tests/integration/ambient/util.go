@@ -24,6 +24,8 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -43,6 +45,14 @@ const (
 )
 
 func DeployCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, cniDaemonSet *appsv1.DaemonSet) {
+	if err := deployCNIDaemonset(ctx, c, cniDaemonSet); err != nil {
+		ctx.Fatalf("failed to deploy CNI Daemonset %v", err)
+	}
+}
+
+// deployCNIDaemonset recreates the given DaemonSet and waits for its pods to become ready. It
+// reports errors instead of failing the test, so it is also usable from a cleanup function.
+func deployCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, cniDaemonSet *appsv1.DaemonSet) error {
 	deployDaemonSet := appsv1.DaemonSet{}
 	deployDaemonSet.Spec = cniDaemonSet.Spec
 	deployDaemonSet.ObjectMeta = metav1.ObjectMeta{
@@ -54,11 +64,11 @@ func DeployCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, cniDaemonS
 	_, err := c.(istioKube.CLIClient).Kube().AppsV1().DaemonSets(cniDaemonSet.ObjectMeta.Namespace).
 		Create(context.Background(), &deployDaemonSet, metav1.CreateOptions{})
 	if err != nil {
-		ctx.Fatalf("failed to deploy CNI Daemonset %v", err)
+		return err
 	}
 
 	// Wait for the DS backing pods to ready up
-	retry.UntilSuccessOrFail(ctx, func() error {
+	return retry.UntilSuccess(func() error {
 		ensureCNIDS := GetCNIDaemonSet(ctx, c, cniDaemonSet.ObjectMeta.Namespace)
 		if ensureCNIDS.Status.NumberReady == ensureCNIDS.Status.DesiredNumberScheduled {
 			return nil
@@ -68,6 +78,14 @@ func DeployCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, cniDaemonS
 }
 
 func DeleteCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, systemNamespace string) {
+	// Keep a copy so we can put the DaemonSet back no matter how the test ends. Without CNI the
+	// node CNI config is left unusable, so a test that fails before redeploying the DaemonSet
+	// itself would otherwise take down every later test in the suite with it.
+	origDaemonSet := GetCNIDaemonSet(ctx, c, systemNamespace)
+	ctx.Cleanup(func() {
+		restoreCNIDaemonset(ctx, c, origDaemonSet)
+	})
+
 	if err := c.(istioKube.CLIClient).
 		Kube().AppsV1().DaemonSets(systemNamespace).
 		Delete(context.Background(), "istio-cni-node", metav1.DeleteOptions{}); err != nil {
@@ -86,6 +104,26 @@ func DeleteCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, systemName
 		}
 		return nil
 	}, retry.Delay(1*time.Second), retry.Timeout(80*time.Second))
+}
+
+// restoreCNIDaemonset recreates the CNI DaemonSet if it is still missing. It is a no-op when the
+// test already redeployed it on the happy path.
+func restoreCNIDaemonset(ctx framework.TestContext, c cluster.Cluster, cniDaemonSet *appsv1.DaemonSet) {
+	ns := cniDaemonSet.ObjectMeta.Namespace
+	_, err := c.(istioKube.CLIClient).Kube().AppsV1().DaemonSets(ns).
+		Get(context.Background(), cniDaemonSet.ObjectMeta.Name, metav1.GetOptions{})
+	if err == nil {
+		return
+	}
+	if !kerrors.IsNotFound(err) {
+		scopes.Framework.Errorf("failed to check whether CNI Daemonset needs restoring: %v", err)
+		return
+	}
+
+	scopes.Framework.Infof("Restoring CNI Daemonset %s/%s left behind by a failed test...", ns, cniDaemonSet.ObjectMeta.Name)
+	if err := deployCNIDaemonset(ctx, c, cniDaemonSet); err != nil {
+		scopes.Framework.Errorf("failed to restore CNI Daemonset, later tests in this suite will likely fail: %v", err)
+	}
 }
 
 func GetCNIDaemonSet(ctx framework.TestContext, c cluster.Cluster, systemNamespace string) *appsv1.DaemonSet {
@@ -146,30 +184,52 @@ func WaitForStalledPodOrFail(t framework.TestContext, cluster cluster.Cluster, n
 			return fmt.Errorf("still waiting the pod in namespace %v to start", ns.Name())
 		}
 		for _, p := range pods.Items {
-			for _, cState := range p.Status.ContainerStatuses {
-				waiting := cState.State.Waiting
-
-				scopes.Framework.Infof("checking pod status for stall")
-				if waiting != nil && (waiting.Reason == "ContainerCreating" || waiting.Reason == "PodInitializing") {
-					scopes.Framework.Infof("checking pod events")
-					events, err := cluster.Kube().CoreV1().Events(ns.Name()).List(context.TODO(), metav1.ListOptions{})
-					if err != nil {
-						return err
-					}
-					for _, ev := range events.Items {
-						if ev.InvolvedObject.Name == p.Name && strings.Contains(ev.Message, "Failed to create pod sandbox") {
-							return nil
-						}
-					}
-				}
+			stalled, err := podStalledOnSandbox(cluster, ns, p)
+			if err != nil {
+				return err
+			}
+			if stalled {
+				return nil
 			}
 		}
 		return fmt.Errorf("cannot find any pod stalled on sandbox creation")
 	}, retry.Delay(1*time.Second), retry.Timeout(80*time.Second))
 }
 
-// WaitForBrokenPodOrFail waits for a pod that got a sandbox but no istio redirection, so
-// istio-validation crashloops. This is the state the CNI repair controller acts on.
+// podStalledOnSandbox reports whether the given pod is waiting to start because the kubelet cannot
+// create its sandbox, which the CNI plugin being unavailable causes.
+func podStalledOnSandbox(cluster cluster.Cluster, ns namespace.Instance, p corev1.Pod) (bool, error) {
+	for _, cState := range p.Status.ContainerStatuses {
+		waiting := cState.State.Waiting
+
+		scopes.Framework.Infof("checking pod status for stall")
+		if waiting != nil && (waiting.Reason == "ContainerCreating" || waiting.Reason == "PodInitializing") {
+			scopes.Framework.Infof("checking pod events")
+			events, err := cluster.Kube().CoreV1().Events(ns.Name()).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
+			for _, ev := range events.Items {
+				if ev.InvolvedObject.Name == p.Name && strings.Contains(ev.Message, "Failed to create pod sandbox") {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+// WaitForBrokenPodOrFail waits for a pod broken by the missing CNI plugin, in either of the two
+// shapes that can take:
+//
+//   - the pod got a sandbox but no istio redirection, so istio-validation crashloops. This is the
+//     state the CNI repair controller acts on.
+//   - the pod never got a sandbox at all, so no init container ever ran. On OpenShift the istio-cni
+//     config lives in the Multus config dir, and removing it leaves that dir empty, so Multus can
+//     resolve no delegate and sandbox creation fails outright. istio-validation can never run, let
+//     alone crashloop, so only accepting the first shape would permanently fail there.
+//
+// Either way the pod is broken and must recover once the CNI DaemonSet comes back.
 func WaitForBrokenPodOrFail(t framework.TestContext, cluster cluster.Cluster, ns namespace.Instance) {
 	retry.UntilSuccessOrFail(t, func() error {
 		pods, err := cluster.Kube().CoreV1().Pods(ns.Name()).List(context.TODO(), metav1.ListOptions{})
@@ -191,8 +251,17 @@ func WaitForBrokenPodOrFail(t framework.TestContext, cluster cluster.Cluster, ns
 					return nil
 				}
 			}
+
+			stalled, err := podStalledOnSandbox(cluster, ns, p)
+			if err != nil {
+				return err
+			}
+			if stalled {
+				return nil
+			}
 		}
-		return fmt.Errorf("cannot find any pod with a crashlooping %s", constants.ValidationContainerName)
+		return fmt.Errorf("cannot find any pod with a crashlooping %s or stalled on sandbox creation",
+			constants.ValidationContainerName)
 	}, retry.Delay(1*time.Second), retry.Timeout(2*time.Minute))
 }
 
