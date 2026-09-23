@@ -44,8 +44,8 @@ test_suites:
         reason: ""
         skip_in: ['downstream','midstream_sail']
       - name: "TestCNIRaceRepair"
-        reason: ""
-        skip_in: ['downstream','midstream_sail']
+        reason: "Test is not valid in Sail Operator install method. For helm install method, it is not working on OCP after test fix in upstream https://github.com/istio/istio/pull/61653"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestValidation"
         reason: ""
         skip_in: ['downstream','midstream_sail']
