@@ -9,6 +9,7 @@ updates:
     labels:
       - "release-notes-none"
     target-branch: "master"
+    open-pull-requests-limit: 0
     # The following dependencies are locked to a specific minor version and/or are updated through
     # automation (e.g. Istio API sync, Kubernetes version bumps, Envoy version bumps). We use both
     # `ignore` and `groups.exclude-patterns` for each entry:
@@ -43,6 +44,7 @@ updates:
     labels:
       - "release-notes-none"
     target-branch: "release-1.31"
+    open-pull-requests-limit: 0
     # See master stanza above for why both ignore and exclude-patterns are required.
     ignore:
       - dependency-name: "istio.io/*"
@@ -74,6 +76,7 @@ updates:
     labels:
       - "release-notes-none"
     target-branch: "release-1.30"
+    open-pull-requests-limit: 0
     # See master stanza above for why both ignore and exclude-patterns are required.
     ignore:
       - dependency-name: "istio.io/*"
@@ -109,6 +112,7 @@ updates:
     labels:
       - "release-notes-none"
     target-branch: "release-1.29"
+    open-pull-requests-limit: 0
     # See master stanza above for why both ignore and exclude-patterns are required.
     ignore:
       - dependency-name: "istio.io/*"
