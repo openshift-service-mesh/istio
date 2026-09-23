@@ -12,6 +12,7 @@
     "repoName": "ztunnel",
     "file": "",
     "lastStableSHA": "aa49ad54ff61eca2fcb109d6ef0740848e7d7221"
+  },
   {
     "_comment": "",
     "name": "AGENTGATEWAY_IMAGE",
