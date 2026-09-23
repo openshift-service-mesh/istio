@@ -65,6 +65,8 @@ func TestMain(m *testing.M) {
 		SkipIf("PQC is not working on FIPS cluster due to X25519MLKEM", func(t resource.Context) bool {
 			return t.Settings().Fips
 		}).
+		Label(testlabel.PQC).
+		Label(testlabel.Full).
 		Setup(istio.Setup(&i, func(ctx resource.Context, cfg *istio.Config) {
 			ctx.Settings().Ambient = true
 			ctx.Settings().SkipVMs()

@@ -114,7 +114,7 @@ func uninstallWasmTrafficExtension(ctx framework.TestContext, filterName, path s
 
 // TestTrafficExtension_ImagePullPolicy tests WASM image pull policies with TrafficExtension
 func TestTrafficExtension_ImagePullPolicy(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			tag := names.SimpleNameGenerator.GenerateName("test-tag-")
 			applyAndTestTrafficExtensionWithOCI(t, trafficExtensionWasmTestConfig{
@@ -160,7 +160,7 @@ func TestTrafficExtension_ImagePullPolicy(t *testing.T) {
 
 // TestTrafficExtension_ImagePullPolicyWithHTTP tests WASM HTTP URLs with TrafficExtension
 func TestTrafficExtension_ImagePullPolicyWithHTTP(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			tag := names.SimpleNameGenerator.GenerateName("test-tag-")
 			applyAndTestTrafficExtensionWithHTTP(t, trafficExtensionWasmTestConfig{
@@ -200,7 +200,7 @@ func resetTrafficExtensionWasmHTTP(ctx framework.TestContext, filterName string)
 
 // TestTrafficExtension_BadWasmRemoteLoad tests WASM load failures with TrafficExtension
 func TestTrafficExtension_BadWasmRemoteLoad(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			// This test verifies that a bad WASM module fails to load
 			// Using a non-existent OCI image should cause the filter to fail
@@ -220,7 +220,7 @@ func TestTrafficExtension_BadWasmRemoteLoad(t *testing.T) {
 
 // TestTrafficExtension_SelectorMatching tests selector-based WASM filter targeting
 func TestTrafficExtension_SelectorMatching(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			tag := names.SimpleNameGenerator.GenerateName("test-tag-")
 			mapWasmTagToVersionOrFail(t, tag, "0.0.1")
@@ -241,7 +241,7 @@ func TestTrafficExtension_SelectorMatching(t *testing.T) {
 
 // TestTrafficExtension_GatewaySelection tests TrafficExtension targeting a Gateway resource
 func TestTrafficExtension_GatewaySelection(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			crd.DeployGatewayAPIOrSkip(t)
 			args := map[string]any{
@@ -277,7 +277,7 @@ func TestTrafficExtension_GatewaySelection(t *testing.T) {
 
 // TestTrafficExtension_BadWasmWithFailOpen tests WASM load failures with fail_open strategy
 func TestTrafficExtension_BadWasmWithFailOpen(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			// Enable logging for debugging
 			applyTelemetryResource(t, true)
