@@ -68,7 +68,10 @@ coverage.out
 .wiki
 artifacts
 # AI agents
-.claude
+.claude/settings.local.json
+.claude/*.local.json
+.claude/local-*.md
+.claude/worktrees/
 .cursor
 .aider*
 .copilot

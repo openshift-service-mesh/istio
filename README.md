@@ -10,7 +10,7 @@
 > contribution workflow, see [docs/upstream.md](docs/upstream.md).
 > For OSSM-specific contribution requirements (PR labels, coding conventions), see
 > [CONTRIBUTING.md](CONTRIBUTING.md).
-> For AI agent guidance, see [AGENTS.md](AGENTS.md).
+> For AI agent guidance, see [AGENTS.md](AGENTS.md) and [`.claude/`](.claude/) for Claude Code configuration.
 
 ---
 
@@ -113,6 +113,24 @@ component of Ambient mesh.
 
 > [!NOTE]
 > Only the `istio/api` and `istio/client-go` repositories expose stable interfaces intended for direct usage as libraries.
+
+## AI Agents
+
+The repository ships a `.claude/` directory with project-specific configuration for [Claude Code](https://claude.ai/claude-code). `CLAUDE.md` is a symlink to `AGENTS.md`, which is the primary agent instructions document.
+
+| Path | Purpose |
+|---|---|
+| `CLAUDE.md` | Entry point — symlink to `AGENTS.md` |
+| `.claude/settings.json` | Allowed Bash and WebFetch permissions for this project |
+| `.claude/rules/` | Code style, testing, and API/label conventions for OSSM PRs |
+| `.claude/skills/upstream-sync-review/` | Workflow to evaluate sync readiness and label correctness |
+| `.claude/agents/code-reviewer.md` | Reviewer persona: xDS, KRT patterns, OSSM annotations, test coverage |
+| `.claude/agents/sync-auditor.md` | Sync auditor persona: label check, upstream-first compliance, annotation audit |
+| `.claude/commands/submit-pr.md` | PR submission checklist (label, upstream-first, OSSM-only comments) |
+| `.claude/commands/sync-check.md` | Decision tree for determining the correct PR label |
+| `.claude/commands/cherry-pick.md` | Backport workflow to release branches |
+
+> **Note:** `.claude/settings.local.json` and `local-*.md` files are excluded by `.gitignore` and are safe for machine-local overrides.
 
 ## Issue management
 
