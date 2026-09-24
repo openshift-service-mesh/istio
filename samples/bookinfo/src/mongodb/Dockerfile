@@ -12,6 +12,14 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+# Deliberately held back; do not bump without reworking the seed data and the
+# ratings client. MongoDB 8.0.24 and later refuse to start on Linux kernel 6.19+
+# (https://jira.mongodb.org/browse/SERVER-121912). The incompatibility affects
+# the whole 8.0 line -- 8.0.8 simply starts anyway rather than failing loudly --
+# so there is no patch release we can move to. Escaping it means 8.2/8.3, which
+# additionally requires fixing mongoimport's rejection of ratings_data.json and
+# replacing the mongodb 3.x driver in samples/bookinfo/src/ratings, since that
+# driver cannot connect to those servers.
 FROM mongo:8.0.8
 WORKDIR /app/data/
 COPY ratings_data.json /app/data/
