@@ -2182,9 +2182,13 @@ spec:
 					HTTP: echo.HTTP{
 						HTTP2: h2,
 					},
-					Count: 1,
+					Count:   1,
+					Timeout: 15 * time.Second,
 					Port: echo.Port{
 						Protocol: protocol.HTTP,
+					},
+					Retry: echo.Retry{
+						Options: []retry.Option{retry.Timeout(60 * time.Second)},
 					},
 					Check: check.And(
 						check.OK(),
