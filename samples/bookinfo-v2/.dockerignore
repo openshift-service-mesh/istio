@@ -1,0 +1,7 @@
+# Golden files and tests are not needed to build a binary.
+**/testdata
+**/*_test.go
+README.md
+.dockerignore
+docker-bake.hcl
+build-services.sh
