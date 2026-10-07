@@ -70,6 +70,9 @@ test_suites:
       - name: "TestGateway/managed"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway/insecure-frontend-validation-mode"
+        reason: "Disabling test which requires experimental CRDs, .spec.allowedListeners: field not declared in schema error"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestInferencePoolMultipleTargetPorts"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
