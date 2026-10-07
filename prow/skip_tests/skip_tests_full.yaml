@@ -367,6 +367,9 @@ test_suites:
       - name: "TestWaypointWithSidecarBackend"
         reason: "Requires sidecar echo pods which are not deployed on OCP due to SCC constraints in ambient mode"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestServiceEntryVisibility"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       # --- BEGIN shared TestGatewayConformance subtest skips ---
       # Keep this block identical across branches (master, release-1.3x) and
       # across the pilot/ambient suites. Sorted alphabetically.
