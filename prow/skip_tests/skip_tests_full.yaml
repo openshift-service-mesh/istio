@@ -1,4 +1,4 @@
-# Test Configuration - Full Test Suite (release-1.30)
+# Test Configuration - Full Test Suite (release-1.31)
 # This file centralizes test run configuration for all runners (downstream, jenkins, etc.)
 # The data are used to run Istio Integration tests, to fill the command:
 # integ-suite-ocp.sh ${test_suite} ${skip_tests} ${skip_subsuites} ${run_tests_only}
@@ -64,6 +64,27 @@ test_suites:
       - name: "TestPilotResourceFilter"
         reason: "Gateway spec.allowedListeners field not present in OCP Gateway API CRDs"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway/unmanaged"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway/managed"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGateway/insecure-frontend-validation-mode"
+        reason: "Disabling test which requires experimental CRDs, .spec.allowedListeners: field not declared in schema error"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestInferencePoolMultipleTargetPorts"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestTraffic/externalname/routed/auto-http"
+        reason: "Disabling auto-http test till https://github.com/istio/istio/issues/61519 resolved"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      # --- BEGIN shared TestGatewayConformance subtest skips ---
+      # Keep this block identical across branches (master, release-1.3x) and
+      # across the pilot/ambient suites. Sorted alphabetically.
+      - name: "TestGatewayConformance/BackendTLSPolicy"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
         skip_in: ['downstream','midstream_sail','midstream_helm']
@@ -76,14 +97,38 @@ test_suites:
       - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/BackendTLSPolicy"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+      - name: "TestGatewayConformance/GatewayFrontendClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/MeshHTTPRoute303Redirect"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/GatewayFrontendInvalidDefaultClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/MeshHTTPRoute308Redirect"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/GatewayHTTPListenerIsolation"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInfrastructure"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInvalidFrontendClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInvalidTLSBackendConfiguration"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayObservedGenerationBump"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayOptionalAddressValue"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretReferenceGrantAllInNamespace"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretReferenceGrantSpecific"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/HTTPRoute303Redirect"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
@@ -97,44 +142,29 @@ test_suites:
       - name: "TestGatewayConformance/HTTPRouteCORS"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteHostnameIntersection"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefNonexistent"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefUnknownKind"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListenerHostname"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListener"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteMixedTerminationSameNamespace"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteTerminateSimpleSameNamespace"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
-        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/HTTPRouteCORSAllowCredentialsBehavior"
         reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/HTTPRouteInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/HTTPRoutePartiallyInvalidViaInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGateway/unmanaged"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/HTTPRouteReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGateway/managed"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/HTTPRouteRequestHeaderModifierBackendWeights"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestInferencePoolMultipleTargetPorts"
-        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+      - name: "TestGatewayConformance/HTTPRouteRequestMultipleMirrors"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRetry"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteWeight"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/ListenerSetAllowedNamespaceNone"
         reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
@@ -154,17 +184,85 @@ test_suites:
       - name: "TestGatewayConformance/ListenerSetDefaultNotAllowed"
         reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
         skip_in: ['downstream','midstream_sail','midstream_helm']
-      - name: "TestGatewayConformance/ListenerSetHostnameConflict"
-        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+      - name: "TestGatewayConformance/ListenerSetDualParentRefIndependence"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetGatewayParentSectionNameNotFound"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
         skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/ListenerSetHTTPRouting"
         reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetHostnameConflict"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
       - name: "TestGatewayConformance/ListenerSetProtocolConflict"
         reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
-      - name: "TestTraffic/externalname/routed/auto-http"
-        reason: "Disabling auto-http test till https://github.com/istio/istio/issues/61519 resolved"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetReferenceGrant"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetRouteStatusScopedToParentRef"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/MeshHTTPRoute303Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/MeshHTTPRoute308Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidBackendRefNonexistent"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidCrossNamespaceBackendRef"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidNonTCPListener"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteMultipleRoutesAttachment"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteParentRefAttachAll"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteParentRefPortAndSectionName"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteWeightedRouting"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteHostnameIntersection"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefNonexistent"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefUnknownKind"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListener"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListenerHostname"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteMixedTerminationSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteTerminateSimpleSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      # --- END shared TestGatewayConformance subtest skips ---
     skip_subsuites: []
     run_tests_only: []
   security:
@@ -269,6 +367,193 @@ test_suites:
       - name: "TestWaypointWithSidecarBackend"
         reason: "Requires sidecar echo pods which are not deployed on OCP due to SCC constraints in ambient mode"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestServiceEntryVisibility"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      # --- BEGIN shared TestGatewayConformance subtest skips ---
+      # Keep this block identical across branches (master, release-1.3x) and
+      # across the pilot/ambient suites. Sorted alphabetically.
+      - name: "TestGatewayConformance/BackendTLSPolicy"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidCACertificateRef"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyInvalidKind"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicyObservedGenerationBump"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/BackendTLSPolicySANValidation"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1, should be fixed on OCP 4.22+"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayFrontendClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayFrontendInvalidDefaultClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayHTTPListenerIsolation"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInfrastructure"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInvalidFrontendClientCertificateValidation"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayInvalidTLSBackendConfiguration"
+        reason: "The installed Gateway API CRDs are an older version that lacks support for newer v1.5.x features the tests expect."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayObservedGenerationBump"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewayOptionalAddressValue"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretReferenceGrantAllInNamespace"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/GatewaySecretReferenceGrantSpecific"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoute303Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoute307Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoute308Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteCORS"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteCORSAllowCredentialsBehavior"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRoutePartiallyInvalidViaInvalidReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRequestHeaderModifierBackendWeights"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRequestMultipleMirrors"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteRetry"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/HTTPRouteWeight"
+        reason: "The current OCP cluster is missing requested CRD field for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceNone"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceSame"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedNamespaceSelector"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedRoutesNamespaces"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetAllowedRoutesSupportedKinds"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetDefaultNotAllowed"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetDualParentRefIndependence"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetGatewayParentSectionNameNotFound"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetHTTPRouting"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetHostnameConflict"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetProtocolConflict"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetReferenceGrant"
+        reason: "Disabling test which requires stable CRDs available only from GW api 1.5.1+ (OCP4.23+)"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/ListenerSetRouteStatusScopedToParentRef"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/MeshHTTPRoute303Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/MeshHTTPRoute308Redirect"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidBackendRefNonexistent"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidCrossNamespaceBackendRef"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteInvalidNonTCPListener"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteMultipleRoutesAttachment"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteParentRefAttachAll"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteParentRefPortAndSectionName"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteReferenceGrant"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TCPRouteWeightedRouting"
+        reason: "The current OCP cluster is missing requested CRDs for the test added in v1.6 of GW conformance tests."
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteHostnameIntersection"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefNonexistent"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidBackendRefUnknownKind"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListener"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidNoMatchingListenerHostname"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteInvalidReferenceGrant"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteMixedTerminationSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteSimpleSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestGatewayConformance/TLSRouteTerminateSimpleSameNamespace"
+        reason: "Disabling test which requires experimental CRDs gateway.networking.k8s.io/v1"
+        skip_in: ['downstream','midstream_sail','midstream_helm']
+      # --- END shared TestGatewayConformance subtest skips ---
     skip_subsuites:
       - name: "pqc"
         reason: "This is a temporary change until we have ztunnel compiled with OpenSSL 3.5."
