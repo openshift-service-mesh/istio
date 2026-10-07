@@ -108,7 +108,7 @@ func uninstallTrafficExtensionWasm(ctx framework.TestContext, filterName, path s
 
 // TestTrafficExtension_WasmConfigurations tests WASM TrafficExtension on different targets in ambient mode
 func TestTrafficExtension_WasmConfigurations(t *testing.T) {
-	framework.NewTest(t).
+	framework.NewFullTest(t).
 		Run(func(t framework.TestContext) {
 			testCases := []struct {
 				desc         string

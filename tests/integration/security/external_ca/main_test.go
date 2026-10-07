@@ -42,6 +42,7 @@ func TestMain(m *testing.M) {
 	framework.NewSuite(m).
 		// https://issues.redhat.com/browse/OSSM-5978
 		Skip("https://github.com/istio/istio/issues/1000000").
+		Label(label.Full).
 		Label(label.CustomSetup).
 		RequireMinVersion(19).
 		Setup(func(ctx resource.Context) error {
