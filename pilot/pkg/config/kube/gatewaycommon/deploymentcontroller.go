@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -26,6 +25,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	klabels "k8s.io/apimachinery/pkg/labels"
@@ -385,7 +385,7 @@ func (d *DeploymentController) configureIstioGateway(log *istiolog.Scope, gw gat
 	if d.namespaces != nil {
 		ns = d.namespaces.Get(gw.Namespace, "")
 	}
-	proxyUID, proxyGID := inject.GetProxyIDs(ns)
+	proxyUID, proxyGID := inject.GetProxyIDs(ns, nil, nil)
 
 	defaultName := GetDefaultName(gw.Name, &gw.Spec, gi.DisableNameSuffix)
 
@@ -740,7 +740,7 @@ func applyOverlay(object string, overlaysList []map[string]string) (string, erro
 		a.CreationTimestamp == b.CreationTimestamp &&
 		a.DeletionTimestamp == b.DeletionTimestamp &&
 		a.DeletionGracePeriodSeconds == b.DeletionGracePeriodSeconds &&
-		reflect.DeepEqual(a.OwnerReferences, b.OwnerReferences) &&
+		apiequality.Semantic.DeepEqual(a.OwnerReferences, b.OwnerReferences) &&
 		slices.Equal(a.Finalizers, b.Finalizers)) {
 		return "", fmt.Errorf("illegal metadata change")
 	}
