@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"time"
 
 	"istio.io/istio/pkg/test"
 	"istio.io/istio/pkg/test/framework"
@@ -29,6 +30,8 @@ import (
 	"istio.io/istio/pkg/test/framework/components/istio"
 	"istio.io/istio/pkg/test/framework/components/istio/ingress"
 	"istio.io/istio/pkg/test/framework/resource"
+	"istio.io/istio/pkg/test/scopes"
+	"istio.io/istio/pkg/test/util/retry"
 	"istio.io/istio/pkg/test/util/tmpl"
 	"istio.io/istio/pkg/test/util/yml"
 )
@@ -265,6 +268,17 @@ func skipAmbient(t framework.TestContext, reason string) skip {
 }
 
 func RunAllTrafficTests(t framework.TestContext, i istio.Instance, apps deployment.SingleNamespaceView) {
+	retry.UntilSuccessOrFail(t, func() error {
+		ingr := i.IngressFor(t.Clusters().Default())
+		addrs, _ := ingr.HTTPAddresses()
+		if len(addrs) == 0 {
+			scopes.Framework.Infof("ingress gateway address not ready, retrying...")
+			return fmt.Errorf("ingress gateway address not available yet")
+		}
+		scopes.Framework.Infof("ingress gateway address resolved: %v", addrs)
+		return nil
+	}, retry.Timeout(5*time.Minute), retry.BackoffDelay(15*time.Second))
+
 	RunCase := func(name string, f func(t TrafficContext)) {
 		t.NewSubTest(name).Run(func(t framework.TestContext) {
 			f(TrafficContext{TestContext: t, Apps: apps, Istio: i})
