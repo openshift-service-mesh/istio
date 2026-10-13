@@ -1,0 +1,12 @@
+[
+  {
+    "kind": "Kubernetes",
+    "clusterName": "primary",
+    "network": "network-1"
+  },
+  {
+    "kind": "Kubernetes",
+    "clusterName": "cross-network-primary",
+    "network": "network-2"
+  }
+]
