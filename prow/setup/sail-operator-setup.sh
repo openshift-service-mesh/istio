@@ -703,11 +703,9 @@ if [ "$1" = "install" ]; then
       install_ztunnel || { echo "Failed to install ZTunnel"; exit 1; }
     fi
     install_istio || { echo "Failed to install Istio"; exit 1; }
-    install_gateways || { echo "Failed to install gateways"; exit 1; }
-  fi
-  install_istio || { echo "Failed to install Istio"; exit 1; }
-  if [ "$INSTALL_GATEWAYS" == "true" ]; then
-    install_gateways || { echo "Failed to install gateways"; exit 1; }
+    if [ "$INSTALL_GATEWAYS" == "true" ]; then
+      install_gateways || { echo "Failed to install gateways"; exit 1; }
+    fi
   fi
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
