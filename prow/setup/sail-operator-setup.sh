@@ -117,6 +117,8 @@ EASTWEST_GATEWAY_AMBIENT_MANIFEST="${PROW}/config/sail-operator/eastwest-gateway
 CONVERTER_ADDRESS="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/tools/configuration-converter.sh"
 CONVERTER_SCRIPT=$(basename "$CONVERTER_ADDRESS")
 
+REVISION=""
+
 # ==================== Install Functions ====================
 
 function download_execute_converter(){
@@ -170,15 +172,51 @@ function install_istio(){
     yq -i eval ".apiVersion = \"sailoperator.io/$SAIL_API_VERSION\"" "$WORKDIR/$SAIL_IOP_FILE"
   fi
   patch_config
-  oc apply -f "$WORKDIR/$SAIL_IOP_FILE" || { echo "Failed to install istio"; oc get istio default -o yaml;}
-  oc -n "$NAMESPACE" wait --for=condition=Available deployment/istiod --timeout=240s || { sleep 60; }
+  # If REVISION is set, use it as the name of the Istio resource and Istio deployment
+  # Otherwise, default to "default"
+  local cr_name="${REVISION:-default}"
+  oc apply -f "$WORKDIR/$SAIL_IOP_FILE" || { echo "Failed to install istio"; oc get istio "$cr_name" -o yaml;}
+  local deploy_name="istiod"
+  if [ -n "${REVISION:-}" ]; then
+    deploy_name="istiod-$REVISION"
+  fi
+  oc -n "$NAMESPACE" wait --for=condition=Available "deployment/$deploy_name" --timeout=240s || { sleep 60; }
   echo "istiod created."
+}
+
+# In case of a custom name for the Istio control plane (i.e., REVISION is set),
+# we create a "default" IstioRevisionTag that points to the primary control plane
+# revision. This ensures that namespaces labeled with istio.io/rev=default will
+# route to the correct control plane.
+function ensure_revision_tag_for_named_cr() {
+  if [ -z "${REVISION:-}" ] || [ "$REVISION" = "default" ]; then
+    return
+  fi
+  if oc get istiorevisiontag default &>/dev/null; then
+    echo "IstioRevisionTag 'default' already exists, skipping creation."
+    return
+  fi
+  cat <<EOF | oc apply -f -
+apiVersion: sailoperator.io/v1
+kind: IstioRevisionTag
+metadata:
+  name: default
+spec:
+  targetRef:
+    kind: Istio
+    name: ${REVISION}
+EOF
+  echo "Created IstioRevisionTag 'default' -> '${REVISION}'."
 }
 
 # Install ingress and egress gateways
 function install_gateways() {
-  helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-ingressgateway.yaml
-  helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" > "${WORKDIR}"/istio-egressgateway.yaml
+  local revision_args=()
+  if [ -n "${REVISION:-}" ]; then
+    revision_args=(--set "revision=$REVISION")
+  fi
+  helm template -n "$NAMESPACE" istio-ingressgateway "${ROOT}"/manifests/charts/gateway --values "$INGRESS_GATEWAY_VALUES" "${revision_args[@]}" > "${WORKDIR}"/istio-ingressgateway.yaml
+  helm template -n "$NAMESPACE" istio-egressgateway "${ROOT}"/manifests/charts/gateway --values "$EGRESS_GATEWAY_VALUES" "${revision_args[@]}" > "${WORKDIR}"/istio-egressgateway.yaml
 
   # Apply test-specific gateway patches
   patch_gateway_config
@@ -369,6 +407,9 @@ function cleanup_istio() {
     oc delete all --all -n "$ZTUNNEL_NAMESPACE" --force --grace-period=0 --wait=true
   }
 
+  echo "Deleting IstioRevisionTag resources..."
+  oc delete istiorevisiontag --all --wait=true --timeout=$TIMEOUT_DURATION || true
+
   echo "Deleting Istio resources from namespace $NAMESPACE..."
   oc delete istio --all -n "$NAMESPACE" --wait=true --timeout=$TIMEOUT_DURATION || {
     echo "Normal delete failed for $NAMESPACE or timed out, applying force delete..."
@@ -460,6 +501,7 @@ function download_execute_converter_for_role() {
   esac
   SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
   download_execute_converter
+  REVISION=$(yq '.spec.revision // ""' "$IOP_FILE")
 }
 
 function set_cluster_identity() {
@@ -664,12 +706,18 @@ if [ "$1" = "install" ]; then
     install_multicluster || { echo "Failed multicluster install"; exit 1; }
   else
     download_execute_converter || { echo "Failed to execute converter"; exit 1; }
+    REVISION=$(yq '.spec.revision // ""' "$IOP_FILE")
     install_istio_cni || { echo "Failed to install Istio CNI"; exit 1; }
     if [ "$AMBIENT" == "true" ]; then
       install_ztunnel || { echo "Failed to install ZTunnel"; exit 1; }
     fi
     install_istio || { echo "Failed to install Istio"; exit 1; }
-    install_gateways || { echo "Failed to install gateways"; exit 1; }
+    ensure_revision_tag_for_named_cr
+    # Install gateways only if they are not already present
+    # Used in multi revision test scenarios
+    if ! oc get deployment istio-ingressgateway -n "$NAMESPACE" &>/dev/null; then
+      install_gateways || { echo "Failed to install gateways"; exit 1; }
+    fi
   fi
 elif [ "$1" = "cleanup" ]; then
   if [ "$SKIP_CLEANUP" = "true" ]; then
