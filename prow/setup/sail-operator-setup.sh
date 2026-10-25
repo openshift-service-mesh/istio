@@ -237,7 +237,10 @@ function patch_config() {
   elif [[ "$WORKDIR" == *"pilot-"* ]]; then
     # Fix for TestTraffic/dns/a/ tests
     yq eval '
-      .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true"
+      .spec.values.meshConfig.defaultConfig.proxyMetadata.ISTIO_META_DNS_CAPTURE = "true" |
+      .spec.values.meshConfig.defaultConfig.connectionSettings.listenerPerConnectionBufferLimitBytes = 12345 |
+      .spec.values.meshConfig.defaultConfig.connectionSettings.clusterPerConnectionBufferLimitBytes = 23456 |
+      .spec.values.meshConfig.defaultConfig.connectionSettings.httpHeadersWithUnderscoresAction = "HEADERS_WITH_UNDERSCORES_REJECT_REQUEST"
     ' -i "$WORKDIR/$SAIL_IOP_FILE"
     echo "Enabled DNS capture for Istio proxy."
   fi
