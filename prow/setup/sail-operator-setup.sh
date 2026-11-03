@@ -543,7 +543,7 @@ function install_eastwest_gateway() {
     yq -i ".metadata.namespace = \"$NAMESPACE\"" "$tmp_manifest"
     yq -i ".metadata.labels[\"topology.istio.io/network\"] = \"$network\"" "$tmp_manifest"
     oc apply -f "$tmp_manifest"
-    oc -n "$NAMESPACE" wait --for=condition=Programmed gateway/istio-eastwestgateway --timeout=120s \
+    oc -n "$NAMESPACE" wait --for=condition=Programmed gateway/istio-eastwestgateway --timeout=300s \
       || { echo "East-west Gateway not programmed"; oc -n "$NAMESPACE" get gateway,svc -o wide; exit 1; }
     echo "Ambient east-west gateway created for network $network."
   else
