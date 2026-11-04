@@ -27,8 +27,8 @@
 
 **Required PR Label:** Please add one of the following labels to this PR:
 
-- `permanent-change`: For OSSM-specific changes that should be cherry-picked to all release branches
-- `no-permanent-change`: For temporary changes that should NOT be cherry-picked to release branches
-- `pending-upstream-sync`: For changes awaiting upstream synchronization (cherry-pick until synced from upstream)
+- `permanent-change`: For OSSM-specific changes (would not be submitted upstream) — mandatory cherry-pick to all new minor release branches
+- `no-permanent-change`: For changes specific to a release branch that will NOT be cherry-picked to next minor release branches
+- `pending-upstream-sync`: For changes expected to land from Istio upstream — cherry-picked until the commit is synced from upstream
 
 This labeling helps release maintainers identify which changes to include in new release branches.

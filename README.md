@@ -1,3 +1,19 @@
+# Istio — OpenShift Service Mesh Midstream Fork
+
+> **This is the Red Hat midstream fork of [istio/istio](https://github.com/istio/istio),
+> maintained for [OpenShift Service Mesh (OSSM)](https://www.redhat.com/en/technologies/cloud-computing/openshift/what-is-openshift-service-mesh).**
+>
+> - Upstream repository: <https://github.com/istio/istio>
+> - Midstream repository: <https://github.com/openshift-service-mesh/istio>
+>
+> For details on how this fork relates to upstream, branch mapping, sync process, and
+> contribution workflow, see [docs/upstream.md](docs/upstream.md).
+> For OSSM-specific contribution requirements (PR labels, coding conventions), see
+> [CONTRIBUTING.md](CONTRIBUTING.md).
+> For AI agent guidance, see [AGENTS.md](AGENTS.md).
+
+---
+
 # Istio
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1395/badge)](https://bestpractices.coreinfrastructure.org/projects/1395)
@@ -55,7 +71,7 @@ Istio is composed of these components:
   > simplifies and enhances how microservices in an application talk to each
   > other over the network provided by the underlying platform.
 
-* **Ztunnel** - A lightweight data plane proxy written in Rust,
+- **Ztunnel** - A lightweight data plane proxy written in Rust,
     used in Ambient mesh mode to provide secure connectivity and observability for workloads without sidecar proxies.
 
 - **Istiod** - The Istio control plane. It provides service discovery, configuration and certificate management.
