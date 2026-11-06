@@ -142,6 +142,9 @@ test_suites:
       - name: "TestTraffic/externalname/routed/auto-http"
         reason: "Disabling auto-http test till https://github.com/istio/istio/issues/61519 resolved"
         skip_in: ['downstream','midstream_sail','midstream_helm']
+      - name: "TestConnectionSettings/gateway_xds"
+        reason: "The test sets config during the execution which is not supported by Sail Operator control plane"
+        skip_in: ['downstream','midstream_sail']
     skip_subsuites: []
     run_tests_only: []
   security:
