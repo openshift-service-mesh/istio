@@ -300,6 +300,8 @@ function setup_kind_clusters() {
       cp "${DEFAULT_CLUSTER_YAML}" "${CLUSTER_YAML}"
       cat <<EOF >> "${CLUSTER_YAML}"
 networking:
+  # Let Docker allocate the host port to avoid races during parallel cluster creation.
+  apiServerPort: -1
   podSubnet: ${CLUSTER_POD_SUBNET}
   serviceSubnet: ${CLUSTER_SVC_SUBNET}
 EOF
@@ -307,8 +309,8 @@ EOF
 
     CLUSTER_KUBECONFIG="${KUBECONFIG_DIR}/${CLUSTER_NAME}"
 
-    # Create the clusters.
-    KUBECONFIG="${CLUSTER_KUBECONFIG}" setup_kind_cluster "${CLUSTER_NAME}" "${IMAGE}" "${CLUSTER_YAML}" "true" "false"
+    # Create the clusters. Retry to handle port-allocation races when creating clusters in parallel.
+    KUBECONFIG="${CLUSTER_KUBECONFIG}" setup_kind_cluster_retry "${CLUSTER_NAME}" "${IMAGE}" "${CLUSTER_YAML}" "true" "false"
 
     # Kind currently supports getting a kubeconfig for internal or external usage. To simplify our tests,
     # its much simpler if we have a single kubeconfig that can be used internally and externally.
