@@ -69,7 +69,9 @@ SAIL_IOP_FILE="$(basename "${IOP_FILE%.yaml}")-sail.yaml"
 # Control Istio Ambient mode deploy
 AMBIENT="${AMBIENT:="false"}"
 
-CONVERTER_BRANCH="${CONVERTER_BRANCH:-main}"
+# Pin to the last sail-operator branch without the breaking change in the
+# configuration converter; release-1.26..1.28 don't get the required cherry-picks.
+CONVERTER_BRANCH="${CONVERTER_BRANCH:-release-1.28}"
 
 # get istio version from versions.yaml
 VERSION_FILE="https://raw.githubusercontent.com/istio-ecosystem/sail-operator/$CONVERTER_BRANCH/pkg/istioversion/versions.yaml"
