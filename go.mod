@@ -13,20 +13,20 @@ require (
 	github.com/cbeuw/connutil v1.0.1
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cheggaaa/pb/v3 v3.2.1
+	github.com/cheggaaa/pb/v3 v3.3.0
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2
 	github.com/containernetworking/cni v1.3.1
-	github.com/containernetworking/plugins v1.9.1
+	github.com/containernetworking/plugins v1.10.0
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/cli v29.9.2+incompatible
+	github.com/docker/cli v29.9.3+incompatible
 	github.com/envoyproxy/go-control-plane/contrib v1.36.1-0.20260409083702-98966259b99a
 	github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.19.0
 	github.com/felixge/fgprof v0.9.5
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/go-jose/go-jose/v4 v4.1.7
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-logr/logr v1.4.4
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.4
@@ -44,7 +44,7 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/howardjohn/unshare-go v0.5.0
-	github.com/klauspost/compress v1.20.3
+	github.com/klauspost/compress v1.20.4
 	github.com/lestrrat-go/jwx v1.2.31
 	github.com/mattn/go-isatty v0.0.24
 	github.com/miekg/dns v1.1.73
@@ -63,7 +63,7 @@ require (
 	github.com/quic-go/quic-go v0.61.0
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/spf13/viper v1.21.0
 	github.com/stoewer/go-strcase v1.3.1
 	github.com/stretchr/testify v1.12.1
@@ -112,7 +112,7 @@ require (
 	sigs.k8s.io/gateway-api v1.5.1
 	sigs.k8s.io/gateway-api-inference-extension v1.4.0
 	sigs.k8s.io/gateway-api/conformance v1.5.1
-	sigs.k8s.io/knftables v0.0.21
+	sigs.k8s.io/knftables v0.0.22
 	sigs.k8s.io/mcs-api v0.4.0
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -135,7 +135,7 @@ require (
 	github.com/containerd/typeurl/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/creack/pty v1.1.24 // indirect
-	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
+	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
@@ -167,6 +167,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
+	github.com/google/nftables v0.3.0 // indirect
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
@@ -181,8 +182,10 @@ require (
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
-	github.com/mattn/go-runewidth v0.0.27 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
+	github.com/mattn/go-runewidth v0.0.31 // indirect
+	github.com/mdlayher/netlink v1.11.2 // indirect
+	github.com/mdlayher/socket v0.6.1 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/spdystream v0.5.1 // indirect
@@ -204,7 +207,7 @@ require (
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
