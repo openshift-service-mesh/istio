@@ -21,10 +21,13 @@ import (
 	"strconv"
 	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	schematypes "istio.io/istio/pkg/config/schema/kubetypes"
 	"istio.io/istio/pkg/kube/controllers"
 	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/revisions"
 	"istio.io/istio/pkg/slices"
 )
 
@@ -83,6 +86,48 @@ func RegisterStatus[I controllers.Object, IS any](s *StatusCollections, statusCo
 				// So if either the live OR the desired status changes, this callback will trigger.
 				// Here, we do smarter filtering and can just check whether we meet the desired state.
 				log.Debugf("suppress change for %v %v", l.ResourceName(), l.Obj.GetResourceVersion())
+				return
+			}
+			status := &l.Status
+			if o.Event == controllers.EventDelete {
+				// if the object is being deleted, we should not reset status
+				var empty IS
+				status = &empty
+			}
+			enqueueStatus(statusWriter, l.Obj, status)
+			log.Debugf("Enqueued status update for %v %v: %v", l.ResourceName(), l.Obj.GetResourceVersion(), status)
+		})
+		return h
+	}
+	s.Register(reg)
+}
+
+// RegisterOwnedStatus is RegisterStatus for resources whose status only the revision owning them
+// may write. It carries the status-write ownership gate of istio/istio#58292, scoped to the single
+// registration site that opts in: since istio/istio#60158 removed the ownership filter from the
+// config-emission layer of the Gateway API collections, every revision of a mesh computes the
+// status of every Gateway, and without this check all coexisting revisions of an upgrade would
+// write their own view of it. OSSM deliberately does not use this gate for route resources
+// (OSSM-12582 reverts istio/istio#58292 for them, it left the routes of a CIO gateway with no
+// status writer at all), which is why the gate lives in this opt-in variant and not in
+// RegisterStatus itself.
+func RegisterOwnedStatus[I controllers.Object, IS any](
+	s *StatusCollections,
+	statusCol krt.StatusCollection[I, IS],
+	getStatus func(I) IS,
+	tagWatcher revisions.TagWatcher,
+) {
+	reg := func(statusWriter Queue) krt.HandlerRegistration {
+		h := statusCol.Register(func(o krt.Event[krt.ObjectWithStatus[I, IS]]) {
+			l := o.Latest()
+			liveStatus := getStatus(l.Obj)
+			if krt.Equal(liveStatus, l.Status) {
+				// We want the same status we already have! No need for a write so skip this.
+				log.Debugf("suppress change for %v %v", l.ResourceName(), l.Obj.GetResourceVersion())
+				return
+			}
+			if !tagWatcher.IsMine(metav1.ObjectMeta{Namespace: l.Obj.GetNamespace(), Name: l.Obj.GetName(), Labels: l.Obj.GetLabels()}) {
+				log.Debugf("suppress change for %v %v because it does not belong to my revision", l.ResourceName(), l.Obj.GetResourceVersion())
 				return
 			}
 			status := &l.Status

@@ -254,7 +254,8 @@ func NewController(
 		c.tagWatcher,
 		opts,
 	)
-	status.RegisterStatus(c.status, ListenerSetStatus, GetStatus)
+	// the ListenerSet status is only written by the revision owning the resource, see RegisterOwnedStatus
+	status.RegisterOwnedStatus(c.status, ListenerSetStatus, GetStatus, tw)
 
 	DestinationRules := DestinationRuleCollection(
 		inputs.BackendTrafficPolicy,
@@ -348,7 +349,8 @@ func NewController(
 	})
 
 	GatewayFinalStatus := FinalGatewayStatusCollection(GatewaysStatus, RouteAttachments, RouteAttachmentsIndex, opts)
-	status.RegisterStatus(c.status, GatewayFinalStatus, GetStatus)
+	// the Gateway status is only written by the revision owning the resource, see RegisterOwnedStatus
+	status.RegisterOwnedStatus(c.status, GatewayFinalStatus, GetStatus, tw)
 
 	VirtualServices := krt.JoinCollection([]krt.Collection[*config.Config]{
 		tcpRoutes.VirtualServices,
